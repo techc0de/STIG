@@ -1,0 +1,54 @@
+---
+
+- set_fact:
+    stig_id: V-75647
+    stig_text: 'FAILED. the "/etc/audit/audit.rule" and "/etc/audit/auditd.conf" files do not have mode "0640" or less permissive.'
+
+- local_action: lineinfile regexp='^V-75647' path="{{ output_path }}" state=absent
+
+- name: verify that the "/etc/audit/audit.rule" and "/etc/audit/auditd.conf" files have mode "0640" or less permissive
+  block: 
+
+    - name: check audit.rule file
+      become: true
+      shell: stat -c "%a %n" /etc/audit/audit.rule | cut -d ' ' -f 1
+      register: file_perm
+      failed_when: file_perm.rc != 0 or file_perm.stdout != '640'
+      
+    - name: check auditd.conf file
+      become: true
+      shell: stat -c "%a %n" /etc/audit/auditd.conf | cut -d ' ' -f 1
+      register: file_perm
+      failed_when: file_perm.rc != 0 or file_perm.stdout != '640'
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: change the permissions of the file "/etc/audit/audit.rule" to "0640".
+      become: true
+      file:
+        path: "/etc/audit/audit.rule"
+        mode: 0640
+        state: touch
+      register: file_perms_rule
+      
+    - name: change the permissions of the file "/etc/audit/auditd.conf" to "0640".
+      become: true
+      file:
+        path: "/etc/audit/auditd.conf"
+        mode: 0640
+        state: touch
+      register: file_perms_conf
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_perms_rule.changed == true and file_perms_conf == true
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

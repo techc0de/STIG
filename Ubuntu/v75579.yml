@@ -1,0 +1,36 @@
+---
+
+- set_fact:
+    stig_id: V-75579
+    stig_text: "FAILED. nosuid option not set on NFS mount(s)"
+    bad_list: []
+
+- local_action: lineinfile regexp='^V-75579' path="{{ output_path }}" state=absent
+
+- name: check nosuid on NFS mounts
+  block: 
+
+    - shell: grep nfs /etc/fstab | grep -v '^#'
+      register: nfs_check
+      failed_when: nfs_check.rc == 3 or nfs_check.rc == 2
+
+    - name: check each fstab entry for nosuid
+      set_fact: 
+        bad_list: "{{ bad_list + [ item ] }}"
+      with_items: "{{ nfs_check.stdout_lines }}"
+      when: item is not search('nosuid')
+
+    - command: /bin/false
+      when: bad_list|length > 0
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+    
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

@@ -1,0 +1,57 @@
+---
+
+- set_fact:
+    stig_id: V-75561
+    stig_text: "FAILED. created users are not being assigned a home directory"
+    target_file: /etc/login.defs
+
+- local_action: lineinfile regexp='^V-75561' path="{{ output_path }}" state=absent
+
+- name: verify all local interactive users on the os are assigned a home directory upon creation.
+  block: 
+
+    - stat:
+        path: "{{ target_file }}"
+      register: login_file
+
+    - set_fact:
+        stig_text: "FAILED. {{ target_file }} file does not exist."
+      when: login_file.stat.exists == False
+
+    - command: /bin/false
+      when: login_file.stat.exists == False
+
+    - shell: grep -i 'create_home\s+yes' "{{ target_file }}"
+      register: file_check
+      failed_when: file_check.rc == 2 or file_check.rc == 3
+
+    - command: /bin/false
+      when: file_check.stdout.find('CREATE_HOME') == -1
+      
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: configure os to assign home directories to all new local interactive users
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        create: yes
+        owner: root
+        group: root
+        state: present
+        regexp: '^\#*\s*CREATE\_HOME.*'
+        line: CREATE_HOME yes
+      register: file_updated
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_updated.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

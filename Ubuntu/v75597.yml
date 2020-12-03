@@ -1,0 +1,38 @@
+---
+
+- set_fact:
+    stig_id: V-75597
+    stig_text: 'FAILED. the "/var/log" directory does not have mode "0770" or less permissive.'
+
+- local_action: lineinfile regexp='^V-75597' path="{{ output_path }}" state=absent
+
+- name: verify that the "/var/log" directory has mode "0770" or less permissive
+  block: 
+
+    - shell: stat -c "%a %n" /var/log | cut -d ' ' -f 1
+      register: file_perm
+      failed_when: file_perm.rc != 0 or file_perm.stdout != '770'
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: change the permissions of the file "/var/log" to "0770".
+      become: true
+      file:
+        path: "/var/log"
+        mode: 0770
+        state: directory
+      register: file_perms
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_perms.changed == true
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

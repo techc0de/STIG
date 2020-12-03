@@ -1,0 +1,35 @@
+---
+
+- set_fact:
+    stig_id: V-75593
+    stig_text: 'FAILED. the "/var/log" directory is not group owned by syslog'
+
+- local_action: lineinfile regexp='^V-75593' path="{{ output_path }}" state=absent
+
+- name: verify the "/var/log" directory is group-owned by syslog
+  block: 
+
+    - shell: ls -lad /var/log | cut -d' ' -f4
+      register: lib_files
+      failed_when: lib_files.stdout != 'syslog'
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: change the group of the directory "/var/log" to "syslog"
+      become: true
+      shell: chgrp syslog /var/log
+      register: file_perms
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_perms.rc == 0
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

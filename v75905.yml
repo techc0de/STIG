@@ -1,0 +1,39 @@
+---
+
+- set_fact:
+    stig_id: V-75905
+    stig_text: "FAILED. OS does not accept PIV credentials."
+
+- local_action: lineinfile regexp='^V-75905' path="{{ output_path }}" state=absent
+
+- name: verify the pkcs11 package is installed.
+  block: 
+
+    - name: check for package
+      shell: dpkg -l | grep opensc-pkcs11
+      register: package_check
+      failed_when: package_check.stdout.find('ii  opensc-pkcs11') == -1
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: install the pkcs11 package
+      become: true
+      apt:
+        name: opensc-pkcs11
+        state: present
+        update_cache: yes
+        cache_valid_time: 3600
+      register: install_pkcs
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: install_pkcs.failed == False
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

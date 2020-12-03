@@ -1,0 +1,41 @@
+---
+
+- set_fact:
+    stig_id: V-75903
+    stig_text: "FAILED. multifactor pkcs11 package not found"
+
+- local_action: lineinfile regexp='^V-75903' path="{{ output_path }}" state=absent
+
+- name: verify the os has the packages required for multifactor authentication installed.
+  block: 
+
+    - shell: "dpkg -l | grep libpam-pkcs11"
+      register: clam_check
+
+    - command: /bin/false
+      when: clam_check.stdout.find('ii  libpam-pkcs11') == -1
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: install the libpam-pkcs11 package
+      become: true
+      apt:
+        name: libpam-pkcs11
+        state: present
+        update_cache: yes
+        cache_valid_time: 3600
+      register: install_package
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: install_package.failed == false
+      
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

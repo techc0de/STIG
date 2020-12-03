@@ -1,0 +1,68 @@
+---
+
+- set_fact:
+    stig_id: V-75535
+
+- local_action: lineinfile regexp='^V-75535' path="{{ output_path }}" state=absent
+
+- set_fact:
+    stig_text: "{{ stig_id }} FAILED. OS is not configured to allow system admins to pass information."
+
+- name: verify the OS is configured to allow system administrators to pass information to any other OS administrator or user.
+  block: 
+
+    - name: check/install apparmor pam lib package
+      block:
+
+        - name: confirm that libpam-apparmor package is installed
+          become: true
+          apt:
+            name: libpam-apparmor
+            state: present
+
+        - shell: systemctl status apparmor.service
+          register: apparmor_service
+          failed_when: apparmor_service.rc == 1
+
+        - name: check if running
+          command: /bin/false
+          when: apparmor_service.stdout.find('running') != -1
+
+      rescue:
+
+        - name: enable apparmor service
+          become: true
+          shell: systemctl enable apparmor.service
+          register: start_apparmor_service
+
+        - set_fact:
+            stig_text: "{{ stig_id }} FAILED. Could not enable apparmor service"
+          when: start_apparmor_service.rc != 0
+
+    - command: /bin/false
+      when: start_apparmor_service is defined and start_apparmor_service.rc != 0
+
+    - name: get apparmor status
+      become: true
+      shell: apparmor_status | egrep '^[0-9]+\s+profiles.*'
+      register: apparmor_status
+      failed_when: apparmor_status.rc == 1
+
+    - set_fact:
+        stig_text: "{{ stig_id }} FAILED. apparmor_status has profiles in complain mode."
+      when: apparmor_status.stdout.find('0 profiles are in complain mode') == -1
+
+    - command: /bin/false
+      when: apparmor_status.stdout.find('0 profiles are in complain mode') == -1
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - debug:
+        var: stig_text
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

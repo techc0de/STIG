@@ -1,0 +1,50 @@
+---
+
+- set_fact:
+    stig_id: V-75511
+
+- local_action: lineinfile regexp='^V-75511' path="{{ output_path }}" state=absent
+
+- set_fact:
+    stig_text: "{{ stig_id }} FAILED. found public directories that do not belong to root"
+
+- name: verify that all public directories are owned by root to prevent unauthorized and unintended information transfer via shared system resources.
+
+  block: 
+
+    - name: search for public directories
+      become: true
+      shell: >
+        find / -type d \( -path "/media/*" -o -path "/var/lib/lxd" -o -path "/var/lib/docker" -o -path "/run" -o -path "/proc" -o -path "/sys" \) -prune  -perm -0002 ! -user root
+      register: public_directories
+
+    - command: /bin/false
+      when: public_directories.stdout_lines | length > 0
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: configure all public directories to be owned by root to prevent unauthorized and unintended information transfer via shared system resources.
+      become: true
+      file:
+        path: "{{ item }}"
+        state: touch
+        owner: root
+      with_items: "{{ public_directories.stdout_lines }}"
+      register: updated_public_directories
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: updated_public_directories.changed == true
+
+    - debug:
+        var: public_directories
+
+    - debug:
+        var: stig_text
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

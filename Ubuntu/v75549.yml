@@ -1,0 +1,28 @@
+---
+
+- set_fact:
+    stig_id: V-75549
+    stig_text: "FAILED. user other root has unrestricted access to the system"
+
+- local_action: lineinfile regexp='^V-75549' path="{{ output_path }}" state=absent
+
+- name: check the os for duplicate User ID (UID) of "0"
+  block:
+
+    - shell: "awk -F: '$3 == 0 {print $1}' /etc/passwd"
+      register: user_list
+
+    - command: /bin/false
+      when: user_list.stdout != 'root'
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

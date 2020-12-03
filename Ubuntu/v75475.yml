@@ -1,0 +1,78 @@
+---
+
+- set_fact:
+    stig_id: V-75465
+
+- local_action: lineinfile regexp='^V-75465' path="{{ output_path }}" state=absent
+
+- stat:
+    path: /etc/pam.d/common-password
+  register: pw_file
+
+- name: ensure that os prevents pw from being reused for a min of 5 generations.
+  block: 
+
+    - set_fact:
+        stig_text: "{{ stig_id }} FAILED. common password file does not exist."
+      when: pw_file.stat.exists == False
+
+    - command: /bin/false
+      when: pw_file.stat.exists == False
+
+    - shell: grep ^password /etc/pam.d/common-password | grep remember\s*\=*\s*[0-9]*
+      register: remember_check
+      failed_when: remember_check.rc == 2 or remember_check.rc == 3
+
+    - set_fact:
+        stig_text: "{{ stig_id }} FAILED. remember option is not set in the /etc/pam.d/common-password file"
+      when: remember_check.rc == 1
+
+    - command: /bin/false
+      when: remember_check.rc == 1
+
+    - set_fact:
+        remember_days:  "{{ remember_check.stdout | regex_search('remember\\s*\\=\\s*[0-9]*') }}"
+
+    - name: update param to prevent password reuse for a min of 5 generations.
+      become: true
+      lineinfile:
+        path: /etc/pam.d/common-password
+        regexp: '^(password.*pam_unix.so.*)(\s*remember\s*\=*\s*[0-9]*\s*)(.*)$'
+        line: '\1remember=5\3'
+        backrefs: yes
+      register: remember_updated
+      when: remember_days.split('=')[1] | default('0') | int < 5
+
+    - set_fact:
+        stig_text: "{{ stig_id }} FAILED. remember option is not set in the /etc/pam.d/common-password file"
+      when: remember_updated.failed is defined and remember_updated.failed == true
+      
+    - command: /bin/false
+      when: remember_updated.failed is defined and remember_updated.failed == true
+      
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: add param to prevent password reuse for a min of 5 generations.
+      become: true
+      lineinfile:
+        path: /etc/pam.d/common-password
+        create: no
+        state: present
+        regexp: '^(password.*pam_unix.so.*)$'
+        line: '\1 remember=5'
+        backrefs: yes
+      register: remember_added
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: remember_added.failed == false
+
+    - debug:
+        var: stig_text
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

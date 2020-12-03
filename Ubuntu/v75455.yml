@@ -1,0 +1,66 @@
+---
+
+- set_fact:
+    stig_id: V-75455
+    stig_text: 'FAILED. pw complexity special rule is not set'
+    target_file: /etc/security/pwquality.conf
+
+- local_action: lineinfile regexp='^V-75455' path="{{ output_path }}" state=absent
+
+- name: check that password complexity requires at least 1 special character
+  block: 
+
+    - stat:
+        path: "{{ target_file }}"
+      register: pw_file
+
+    - set_fact:
+        stig_text: "{{ stig_id }} FAILED. pw complexity file does not exist."
+      when: pw_file.stat.exists == False
+
+    - fail: 
+        msg: "{{ stig_text }}"
+      when: pw_file.stat.exists == False
+
+    - name: uncomment configuation option
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^\#*\s*ocredit.*'
+        line: ocredit=-1
+        state: present
+        create: yes
+        owner: root
+        group: root
+
+    - shell: >
+        grep '^ocredit' "{{ target_file }}"
+      register: pw_check
+      failed_when: pw_check.stdout.find('ocredit=-1') == -1
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: configure password quality file, add special character requirement
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        create: yes
+        owner: root
+        group: root
+        state: present
+        line: ocredit=-1
+      register: config_updated
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: config_updated.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

@@ -1,0 +1,107 @@
+---
+
+- set_fact:
+    stig_id: V-75393
+
+- local_action: lineinfile regexp='^V-75393' path="{{ output_path }}" state=absent
+
+- stat:
+    path: /etc/X11/default-display-manager
+  register: dm_file
+
+- name: check banner message config
+  block: 
+
+    # no default display manager file indicates a system without a graphical interface
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED. note: no graphical interface."
+      when: dm_file.stat.exists == False
+
+    - command: /bin/false
+      when: dm_file.stat.exists == False
+
+    - set_fact:
+        contents: "{{ lookup('file', '/etc/X11/default-display-manager') }}"
+
+    - set_fact:
+        stig_text: "{{ stig_id }} FAILED. Could not read default display manager file content."
+      when: contents is not defined
+      
+    - command: /bin/false
+      when: contents is not defined
+
+    - set_fact:
+        stig_text: "{{ stig_id }} FAILED. Ubuntu configuration script requires gdm3."
+      when: contents != "/usr/sbin/gdm3"
+
+    - command: /bin/false
+      when: contents != "/usr/sbin/gdm3"
+
+    - name: Enable block for banner configuration
+      become: true
+      lineinfile:
+        path: /etc/gdm3/greeter.dconf-defaults
+        regexp: '^\#\[org\/gnome\/login\-screen\]'
+        line: '[org/gnome/login-screen]'
+        create: no
+        state: present
+
+    - name: Enable banner
+      become: true
+      lineinfile:
+        path: /etc/gdm3/greeter.dconf-defaults
+        line: banner-message-enable=true
+        create: no
+        regexp: '^\#*\s*banner-message-enable'
+        state: present
+
+    - name: Disabled user list
+      become: true
+      lineinfile:
+        path: /etc/gdm3/greeter.dconf-defaults
+        line: disable-user-list=true
+        create: no
+        regexp: '^\#*\s*disable-user-list'
+        state: present
+
+    - name: Ensure banner is enabled.
+      command: grep banner-message-enable /etc/gdm3/greeter.dconf-defaults
+      register: bm_check
+
+    - set_fact:
+        stig_text: "{{ stig_id }} FAILED. Banner is not enabled."
+      when: bm_check.stdout != 'banner-message-enable=true'
+
+    - command: /bin/false
+      when: bm_check.stdout != 'banner-message-enable=true'
+
+    - name: Enable banner text
+      become: true
+      lineinfile:
+        path: /etc/gdm3/greeter.dconf-defaults
+        line: banner-message-text="You are accessing a U.S. Government (USG) Information System (IS) that is provided for USG-authorized use only. By using this IS (which includes any device attached to this IS), you consent to the following conditions:\n-The USG routinely intercepts and monitors communications on this IS for purposes including, but not limited to, penetration testing, COMSEC monitoring, network operations and defense, personnel misconduct (PM), law enforcement (LE), and counterintelligence (CI) investigations.\n-At any time, the USG may inspect and seize data stored on this IS.\n-Communications using, or data stored on, this IS are not private, are subject to routine monitoring, interception, and search, and may be disclosed or used for any USG-authorized purpose.\n-This IS includes security measures (e.g., authentication and access controls) to protect USG interests--not for your personal benefit or privacy.\n-Notwithstanding the above, using this IS does not constitute consent to PM, LE or CI investigative searching or monitoring of the content of privileged communications, or work product, related to personal representation or services by attorneys, psychotherapists, or clergy, and their assistants. Such communications and work product are private and confidential. See User Agreement for details.\nI've read & consent to terms in IS user agreem't."
+        create: no
+        regexp: '^\#*\s*banner-message-text'
+        state: present
+
+    - command: grep 'You are accessing a U.S. Government (USG) Information System (IS) that is provided for USG-authorized use only' /etc/gdm3/greeter.dconf-defaults
+      register: bmt_check
+
+    - set_fact:
+        stig_text: "{{ stig_id }} FAILED. Banner message text is not set."
+      when: bmt_check.stdout.find('You are accessing a U.S. Government (USG) Information System (IS) that is provided for USG-authorized use only') == -1
+
+    - command: /bin/false
+      when: bmt_check.stdout.find('You are accessing a U.S. Government (USG) Information System (IS) that is provided for USG-authorized use only') == -1
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - debug:
+        var: stig_text
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

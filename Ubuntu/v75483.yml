@@ -1,0 +1,58 @@
+---
+
+- set_fact:
+    stig_id: V-75483
+
+- local_action: lineinfile regexp='^V-75483' path="{{ output_path }}" state=absent
+
+- stat:
+    path: /etc/pam.d/passwd
+  register: pw_file
+
+- name: configure os to prevent the use of dictionary words for passwords
+  block: 
+
+    - set_fact:
+        stig_text: "{{ stig_id }} FAILED. pam.d password file does not exist."
+      when: pw_file.stat.exists == False
+
+    - command: /bin/false
+      when: pw_file.stat.exists == False
+
+    - shell: grep '^\@\s*include\scommon\-password' /etc/pam.d/passwd
+      register: pw_check
+      failed_when: pw_check.rc == 2 or pw_check.rc == 3
+
+    - set_fact:
+        stig_text: "{{ stig_id }} FAILED. common-passwd file has not been included in the /etc/pam.d/passwd file."
+      when: pw_check.rc == 1
+
+    - command: /bin/false
+      when: pw_check.rc == 1
+      
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: add line to include common-password file
+      become: true
+      lineinfile:
+        path: /etc/pam.d/passwd
+        create: yes
+        owner: root
+        group: root
+        state: present
+        line: '@include common-password'
+      register: config_updated
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: config_updated.failed == false
+
+    - debug:
+        var: stig_text
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

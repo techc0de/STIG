@@ -1,0 +1,45 @@
+---
+
+- set_fact:
+    stig_id: V-75527
+
+- local_action: lineinfile regexp='^V-75527' path="{{ output_path }}" state=absent
+
+- set_fact:
+    stig_text: "{{ stig_id }} FAILED. APT is configured to allow the installation of unverified packages"
+
+- name: verify that APT is configured to prevent the installation of unverified packages
+  block: 
+
+    - shell: egrep -ir '(.*AllowUnauthenticated.*\")true(\";)' /etc/apt/apt.conf.d/* | cut -d ":" -f 1
+      register: bad_apt
+
+    - command: /bin/false
+      when: bad_apt.stdout_lines | length > 0
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: configure APT to prevent the installation of unverified packages, patches, or drivers
+      become: true
+      lineinfile:
+        path: "{{ item }}"
+        state: present
+        regexp: '(.*AllowUnauthenticated.*\")true(\";)'
+        line: \1false\2
+        backrefs: yes
+      with_items: "{{ bad_apt.stdout_lines }}"
+      register: config_updated
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: config_updated.changed == true
+
+    - debug:
+        var: stig_text
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

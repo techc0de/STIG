@@ -1,0 +1,45 @@
+---
+
+- set_fact:
+    stig_id: V-75531
+
+- local_action: lineinfile regexp='^V-75531' path="{{ output_path }}" state=absent
+
+- set_fact:
+    stig_text: "{{ stig_id }} FAILED. USB mass storage has not been disabled."
+
+- name: verify that automatic mounting of the USB mass storage driver has been disabled.
+  block: 
+
+    - name: check that automatic mounting of USB has been disabled.
+      become: true
+      shell: modprobe -vn usb-storage
+      register: mod_usb
+      failed_when: mod_usb.rc != 0
+
+    - command: /bin/false
+      when: mod_usb.stdout != 'install /bin/true'
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: disable the mounting of the USB mass storage driver
+      become: true
+      lineinfile:
+        dest: /etc/modprobe.d/DISASTIG.conf
+        line: install usb-storage /bin/true
+        create: yes
+      register: modprobe_updated
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: modprobe_updated.failed == false
+
+    - debug:
+        var: stig_text
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

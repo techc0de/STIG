@@ -1,0 +1,42 @@
+---
+
+- set_fact:
+    stig_id: V-75461
+
+- local_action: lineinfile regexp='^V-75461' path="{{ output_path }}" state=absent
+
+- name: check that interactive password encryption is FIPS 140-2 complient
+  block: 
+
+    - name: check etc shadow file for improperly encrypted interactive user passwords
+      become: true
+      shell: 'cut -d: -f2 /etc/shadow | grep . | grep -v ^[\*\!] | grep -v ^\$6 | wc -l'
+      register: shadow_check
+
+    - set_fact:
+        stig_text: "{{ stig_id }} FAILED. interactive user password encryption method is not FIPS 140-2 complient."
+      when: shadow_check.stdout != "0"
+
+    - command: /bin/false
+      when: shadow_check.stdout != "0"
+      
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: Display the name of user accounts that need to be disabled.
+      become: true
+      shell: 'cat /etc/shadow | grep -v  ^[a-zA-Z\_\-]*\:[\*\!\:] | grep -v ^[a-zA-Z\_\-]*\:\$6.* | cut -d: -f1'
+      register: user_list
+
+    - set_fact:
+        stig_text: "{{ stig_id }} FAILED. lock the following user accounts: {{ user_list.stdout_lines | join(', ') }}"
+      when: user_list.stdout != ""
+
+    - debug:
+        var: stig_text
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

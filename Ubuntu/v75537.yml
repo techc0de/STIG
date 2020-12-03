@@ -1,0 +1,9 @@
+---
+
+- set_fact:
+    stig_id: V-75537
+    stig_text: "FAILED. aa policies must be checked against the authorized application list manually."
+
+- local_action: lineinfile regexp='^V-75537' path="{{ output_path }}" state=absent
+
+- local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

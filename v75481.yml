@@ -1,0 +1,68 @@
+---
+
+- set_fact:
+    stig_id: V-75481
+
+- local_action: lineinfile regexp='^V-75481' path="{{ output_path }}" state=absent
+
+- stat:
+    path: /etc/security/pwquality.conf
+  register: pw_file
+
+- name: configure os to prevent the use of dictionary words for passwords
+  block: 
+
+    - set_fact:
+        stig_text: "{{ stig_id }} FAILED. pw complexity file does not exist."
+      when: pw_file.stat.exists == False
+
+    - command: /bin/false
+      when: pw_file.stat.exists == False
+
+    - name: uncomment configuation option
+      become: true
+      lineinfile:
+        path: /etc/security/pwquality.conf
+        regexp: '^\#*\s*dictcheck.*'
+        line: dictcheck=1
+        state: present
+        create: yes
+        owner: root
+        group: root
+
+    - shell: grep '^dictcheck' /etc/security/pwquality.conf
+      register: pw_check
+
+    - set_fact:
+        stig_text: "{{ stig_id }} FAILED. dictcheck rule is not set."
+      when: pw_check.stdout.find('dictcheck=1') == -1
+
+    - command: /bin/false
+      when: pw_check.stdout.find('dictcheck=1') == -1
+      
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: add dictcheck rule to pwquality file
+      become: true
+      lineinfile:
+        path: /etc/security/pwquality.conf
+        create: yes
+        owner: root
+        group: root
+        state: present
+        line: dictcheck=1
+      register: config_updated
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: config_updated.failed == false
+
+    - debug:
+        var: stig_text
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

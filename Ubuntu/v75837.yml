@@ -1,0 +1,66 @@
+---
+
+- set_fact:
+    stig_id: V-75837
+    stig_text: "FAILED. SSH not configured with approved session timeouts"
+    target_file: /etc/ssh/sshd_config
+
+- local_action: lineinfile regexp='^V-75837' path="{{ output_path }}" state=absent
+
+- stat:
+    path: "{{ target_file }}"
+  register: ssh_file
+    
+- name: verify that SSH is configured to use approved session timeouts.
+  block:
+
+    - command: /bin/false
+      when: ssh_file.stat.exists == False
+
+    - shell: grep -i ClientAliveInterval "{{ target_file }}" | grep -v '^#' | grep -ioP 'ClientAliveInterval \K\d+'
+      register: shell_check_client_alive_interval
+      failed_when: shell_check_client_alive_interval.rc != 0 or shell_check_client_alive_interval.stdout|int > 600
+
+    - shell: grep -i ClientAliveCountMax "{{ target_file }}" | grep -v '^#' | grep -ioP 'ClientAliveCountMax \K\d'
+      register: shell_check_client_alive_count_max
+      failed_when: shell_check_client_alive_count_max.rc != 0 or shell_check_client_alive_count_max.stdout|int < 1
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: configure the SSH daemon to use approved session timeout.
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        line: ClientAliveInterval 600
+        regexp: '^#*\s*ClientAliveInterval.*'
+        state: present
+      register: set_client_alive_interval
+      
+    - name: configure the SSH daemon to use approved session max count.
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        line: ClientAliveCountMax 1
+        regexp: '^#*\s*ClientAliveCountMax.*'
+        state: present
+      register: set_client_alive_count_max
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: set_client_alive_interval.failed == false and set_client_alive_count_max.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+    - name: restart sshd.service
+      become: true
+      service:
+        name: sshd
+        state: restarted
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

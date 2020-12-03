@@ -1,0 +1,60 @@
+---
+
+- set_fact:
+    stig_id: V-75909
+    stig_text: "FAILED. the OS does not implement certificate checking to an accepted trust anchor."
+    target_file: /etc/pam_pkcs11/pam_pkcs11.conf
+
+- local_action: lineinfile regexp='^V-75909' path="{{ output_path }}" state=absent
+
+- name: verify the OS implements certificate checking against a valid CA.
+  block:
+
+    - name: check for the file
+      become: true
+      stat:
+        path: "{{ target_file }}"
+      register: config_file
+
+    - set_fact:
+        stig_text: "FAILED. {{ target_file }} file does not exist."
+      when: config_file.stat.exists == False
+
+    - fail:
+        msg: "{{ stig_text }}"
+      when: config_file.stat.exists == False
+
+    - name: check for ca policy
+      become: true
+      shell: egrep -w '^cert_policy\s+\=\s+ca,signature,ocsp_on$' "{{ target_file }}"
+      register: file_check
+      failed_when: file_check.rc != 0
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: configure the PKCS11 cert policy to use CA
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        create: yes
+        owner: root
+        group: root
+        mode: 0600
+        state: present
+        regexp: '^#*\s*cert_policy.*$'
+        line: 'cert_policy = ca,signature,ocsp_on'
+      register: file_updated
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_updated.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

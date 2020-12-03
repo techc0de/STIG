@@ -1,0 +1,56 @@
+---
+
+- set_fact:
+    stig_id: V-75835
+    target_file: /etc/ssh/sshd_config
+    stig_text: "FAILED. SSH does not provide users with feedback on when account accesses last occurred."
+
+- local_action: lineinfile regexp='^V-75835' path="{{ output_path }}" state=absent
+
+- name: verify SSH provides users with feedback on when account accesses last occurred.
+  block:
+
+    - name: check for the file
+      become: true
+      stat:
+        path: "{{ target_file }}"
+      register: config_file
+
+    - set_fact:
+        stig_text: "FAILED. {{ target_file }} file does not exist."
+      when: config_file.stat.exists == False
+
+    - shell: grep '^\s*PrintLastLog\s*yes' "{{ target_file }}"
+      register: shell_check
+      failed_when: shell_check.stdout == ''
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: configure SSH to provide users with feedback on when account accesses last occurred.
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        line: PrintLastLog yes
+        regexp: '^#*\s*PrintLastLog.*'
+        state: present
+      register: update_sshd
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: update_sshd.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+    - name: restart sshd.service
+      become: true
+      service:
+        name: sshd
+        state: restarted
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

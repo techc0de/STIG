@@ -1,0 +1,57 @@
+---
+
+- set_fact:
+    stig_id: V-75911
+    target_file: /etc/pam.d/common-auth
+    stig_text: "FAILED. OS does not implement smart card logins for multifactor authentication for access to accounts"
+
+- local_action: lineinfile regexp='^V-75911' path="{{ output_path }}" state=absent
+
+- name: verify the os uses multifactor authentication for local access to accounts 
+  block: 
+
+    - name: check for the existance of common-auth file
+      become: true
+      stat:
+        path: "{{ target_file }}"
+      register: pam_file
+      failed_when: pam_file.stat.exists == False
+
+    - name: check for pkcs11 module
+      become: true
+      shell: grep '^auth.*pam_pkcs11.so' "{{ target_file }}"
+      register: pam_check
+      failed_when: pam_check.rc != 0
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - shell: egrep -i '^auth\s+(\[success.*\])\s+pam_unix.so.*' "{{ target_file }}" | grep -o '\[.*\]'
+      register: control
+
+    - name: enable pam_pkcs11 module
+      become: true
+      pamd:
+        path: '/etc/pam.d/'
+        name: common-auth
+        type: auth
+        control: "{{ control.stdout | default('[success=1 default=ignore]') }}"
+        module_path: pam_unix.so
+        new_type: auth
+        new_control: "[success={{ control.stdout_lines | length + 1 }} default=ignore]"
+        new_module_path: pam_pkcs11.so
+        state: before
+      register: config_updated
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: config_updated.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

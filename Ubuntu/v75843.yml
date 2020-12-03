@@ -1,0 +1,38 @@
+---
+
+- set_fact:
+    stig_id: V-75843
+
+- local_action: lineinfile regexp='^V-75843' path="{{ output_path }}" state=absent
+
+- set_fact:
+    stig_text: 'FAILED. found SSH public host key files with invalid modes.'
+
+- name: verify the SSH public host key files have mode "0644" or less permissive.
+  block: 
+
+    - shell: ls -1 /etc/ssh/*.pub
+      register: pub_keys
+      failed_when: pub_keys.rc != 0
+
+    - name: modify pub key file permissions
+      become: true
+      file:
+        path: "{{ item }}"
+        mode: 0644
+        state: touch
+      with_items: "{{ pub_keys.stdout_lines }}"
+      register: file_perms
+      failed_when: file_perms.changed != true
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

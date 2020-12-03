@@ -1,0 +1,43 @@
+---
+
+- set_fact:
+    stig_id: V-75869
+    stig_text: "FAILED. the OS is not configured to use TCP syncookies."
+
+- local_action: lineinfile regexp='^V-75869' path="{{ output_path }}" state=absent
+
+- name: verify the OS is configured to use TCP syncookies
+  block:
+
+    - shell: sysctl net.ipv4.tcp_syncookies
+      register: tcp_check
+      failed_when: tcp_check.stdout.find('net.ipv4.tcp_syncookies = 1') == -1
+      
+    - set_fact: 
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: configure the os to use TCP syncookies
+      become: true
+      shell: sysctl -w net.ipv4.tcp_syncookies=1
+      register: tcp_fix
+
+    - name: update config file
+      become: true
+      lineinfile:
+        path: /etc/sysctl.conf
+        line: net.ipv4.tcp_syncookies = 1
+        create: no
+        regexp: '^\#*\s*net.ipv4.tcp_syncookies'
+        state: present
+      register: config_updated
+
+    - set_fact: 
+        stig_text: "PASSED"
+      when: tcp_fix.rc == 0 and config_updated.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+- local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

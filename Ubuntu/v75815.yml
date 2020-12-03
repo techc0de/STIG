@@ -1,0 +1,43 @@
+---
+
+- set_fact:
+    stig_id: V-75815
+    stig_text: 'FAILED. NTP is not running in continuous mode.'
+    target_file: /etc/init.d/ntp
+
+- local_action: lineinfile regexp='^V-75815' path="{{ output_path }}" state=absent
+
+- name: verify that Network Time Protocol (NTP) is running in continuous mode
+  block: 
+
+    - name: check that NTP is running in continuous mode 
+      become: true
+      shell: grep ntpdate "{{ target_file }}"
+      register: ntp_value
+      failed_when: ntp_value.stdout != "if ntpdate -u -s -b -p 4 -t 5 $NTPSERVER ; then"
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: change the ntpdate command
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^if+\s+ntpdate.*'
+        line: 'if ntpdate -u -s -b -p 4 -t 5 $NTPSERVER ; then'
+        create: false
+      register: update_ntp
+      ignore_errors: yes
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: update_ntp.failed == false
+      
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

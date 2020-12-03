@@ -1,0 +1,52 @@
+---
+
+- set_fact:
+    stig_id: V-75853
+    target_file: /etc/ssh/sshd_config
+    stig_text: "FAILED. remote X connections are not encrypted"
+
+- local_action: lineinfile regexp='^V-75853' path="{{ output_path }}" state=absent
+   
+- name: verify that unattended or automatic login via ssh is disabled.
+  block:
+
+    - name: ensure sshd_config file is present
+      stat:
+        path: "{{ target_file }}"
+      register: ssh_file
+      failed_when: ssh_file.stat.exists == False
+
+    - shell: egrep -i '^\s*x11forwarding\s+yes' "{{ target_file }}"
+      register: shell_check
+      failed_when: shell_check.rc != 0
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: configure the SSH daemon to encrypt connections for interactive users
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        line: X11Forwarding yes
+        regexp: '^#*\s*X11Forwarding.*'
+        state: present
+      register: x11_update
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: x11_update.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+    - name: restart sshd.service
+      become: true
+      service:
+        name: sshd
+        state: restarted
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

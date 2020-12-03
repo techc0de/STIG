@@ -1,0 +1,2 @@
+ufw:
+  - limit 22/tcp

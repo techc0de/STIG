@@ -1,0 +1,26 @@
+--- 
+
+ansible_ssh_user: gl_tech
+ansible_ssh_private_key_file: /home/glawas/.ssh/id_rsa
+ansible_become_pass: '{{ ansible_sudo_pass }}'
+linux_admin_user_list:
+  - gl_tech
+  - rw_tech
+  - rb_tech
+  - so_tech
+  - bm_tech
+  - ia_scanner
+
+linux_user_list:
+  - glawas
+  - soketcho
+  - rwhitehurst
+  - rboykin
+  - ycampbell
+  - sdye
+  - roden
+  - sgrifenhagen
+  - tolatunde
+  - swatson
+  - bmorton
+  - bleighty

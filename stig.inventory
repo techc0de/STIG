@@ -1,0 +1,3 @@
+[bastion]
+aws.new-bastion.dvidshub.net
+aws.bastion.dvidshub.net

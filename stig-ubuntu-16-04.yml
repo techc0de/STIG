@@ -1,0 +1,53 @@
+- hosts: all
+  vars_files:
+    - private/passwords.yml
+  vars:
+    output_path: "/tmp/stig-{{ansible_hostname}}.txt"
+    update_int: '\d+'
+    security_int: ';\d+'
+
+  tasks:
+
+    - name: check for graphical interface
+      stat:
+        path: /etc/X11/default-display-manager
+      register: dm_file
+
+    - name: check to see if we are booting with EFI or UEFI
+      set_fact:
+        booted_with_efi: "{{ ansible_mounts | selectattr('mount', 'equalto', '/boot/efi') | list | length > 0 }}"
+        has_display: "{{ dm_file.stat.exists }}"
+
+    - name: install requried packages
+      become: true
+      package:
+        name:
+          - ntp
+          - ntpdate
+        state: latest
+
+    - name: install auditd now to prevent permission issues down the line.
+      become: true
+      apt:
+        name: auditd
+        state: present
+        update_cache: yes
+        cache_valid_time: 3600
+      when: ansible_virtualization_role != "guest"
+
+    - name: install auditd now to prevent permission issues down the line.
+      become: true
+      apt:
+        name: audispd-plugins
+        state: present
+        update_cache: yes
+        cache_valid_time: 3600
+        dpkg_options: 'force-confnew'
+      when: ansible_virtualization_role != "guest"
+
+
+#    - include_tasks: tasks/stig/ubuntu/v75645.yml
+
+    - include: "{{ item }}"
+      with_fileglob:
+        - tasks/stig/ubuntu/*.yml

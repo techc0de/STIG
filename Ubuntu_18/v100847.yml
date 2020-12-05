@@ -1,0 +1,63 @@
+---
+
+- set_fact:
+    stig_id: V-100847
+    target_file: /etc/ssh/sshd_config
+    stig_text: "FAILED. SSH daemon is not configured to only use Message Authentication Codes (MACs) that employ FIPS 140-2 approved ciphers"
+
+- local_action: lineinfile regexp='^V-100847' path="{{ output_path }}" state=absent
+
+- name: verify the SSH daemon is configured to only use Message Authentication Codes (MACs) that employ FIPS 140-2 approved ciphers.
+  block:
+
+    - name: check for the file
+      become: true
+      stat:
+        path: "{{ target_file }}"
+      register: config_file
+      failed_when: config_file.stat.exists == False
+
+    - name: check for mac param
+      become: true
+      shell: grep -i macs "{{ target_file }}"
+      register: shell_check
+      failed_when: shell_check.stdout != "MACs hmac-sha2-256,hmac-sha2-512"
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: ensure ciphers are installed
+      become: true
+      apt:
+        name: libgcrypt20-dev
+        state: present
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: configure the OS to allow the SSH daemon to only use Message Authentication Codes (MACs) that employ FIPS 140-2 approved ciphers
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        line: MACs hmac-sha2-256,hmac-sha2-512
+        regexp: '^#*\s*MACs.*'
+        state: present
+      register: update_cipher
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: update_cipher.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+    - name: restart sshd.service
+      become: true
+      service:
+        name: sshd
+        state: restarted
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

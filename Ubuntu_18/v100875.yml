@@ -1,0 +1,69 @@
+---
+
+- set_fact:
+    stig_id: V-100875
+
+- local_action: lineinfile regexp='^V-100875' path="{{ output_path }}" state=absent
+
+- stat:
+    path: /etc/default/useradd
+  register: pw_file
+
+- name: configure os to disable account identifiers after 35 days of inactivity after the password expiration
+  block: 
+
+    - set_fact:
+        stig_text: "{{ stig_id }} FAILED. default useradd file does not exist."
+      when: pw_file.stat.exists == False
+
+    - command: /bin/false
+      when: pw_file.stat.exists == False
+
+    - name: uncomment configuation option
+      become: true
+      lineinfile:
+        path: /etc/default/useradd
+        regexp: '^\#*\s*INACTIVE.*'
+        line: INACTIVE=35
+        state: present
+        create: yes
+        owner: root
+        group: root
+
+    - shell: grep '^INACTIVE' /etc/default/useradd
+      register: pw_check
+      failed_when: pw_check.rc == 2 or pw_check.rc == 3
+
+    - set_fact:
+        stig_text: "{{ stig_id }} FAILED. user inactivity rule is not set."
+      when: pw_check.rc == 1
+
+    - command: /bin/false
+      when: pw_check.rc == 1
+      
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: uncomment configuation option
+      become: true
+      lineinfile:
+        path: /etc/default/useradd
+        line: INACTIVE=35
+        state: present
+        create: yes
+        owner: root
+        group: root
+      register: config_updated
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: config_updated.failed == false
+
+    - debug:
+        var: stig_text
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

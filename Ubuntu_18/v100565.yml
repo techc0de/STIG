@@ -1,0 +1,51 @@
+---
+
+- set_fact:
+    stig_id: V-100565
+    stig_text: "FAILED. invalid members found with sudo privileges"
+    check_list: "{{ linux_admin_user_list }}"
+    bad_list: []
+
+- local_action: lineinfile regexp='^V-100565' path="{{ output_path }}" state=absent
+
+- name: verfiy that the sudo group has only members who should have access to security functions
+  block:
+
+    - shell: grep sudo /etc/group | cut -d":" -f4 | tr "," "\n"
+      register: sudo_users
+
+    - name: check for users
+      set_fact: 
+        bad_list: "{{ bad_list + [ item ] }}"
+      with_items: "{{ sudo_users.stdout_lines }}"
+      when: "item not in check_list"
+
+    - fail:
+        msg: unauthorized users ("{{ bad_list | join(', ') }}") found in sudo group
+      when: bad_list|length > 0
+    
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - set_fact: 
+        stig_text: FAILED. unauthorzed users ("{{ bad_list|join(', ') }}") found in sudo group
+    
+    ##  uncomment at the risk of the entire system!
+    # - name: remove unauthorzed users from sudo group
+    #   become: true
+    #   shell: gpasswd -d "{{ item }}" sudo
+    #   with_items: "{{ bad_list }}"
+    #   register: removed_users
+
+    # - set_fact:
+    #     stig_text: "PASSED"
+    #   when: remove_users.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

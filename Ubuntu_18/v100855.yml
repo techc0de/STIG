@@ -1,0 +1,63 @@
+---
+
+- set_fact:
+    stig_id: V-100855
+    stig_text: "FAILED. multifactor pkcs11 package not found"
+    target_file: /etc/pam_pkcs11/pam_pkcs11.conf
+
+- local_action: lineinfile regexp='^V-100855' path="{{ output_path }}" state=absent
+
+- name: verify the os has the packages required for multifactor authentication installed.
+  block: 
+
+    - shell: dpkg -l | grep libpam-pkcs11
+      register: clam_check
+      failed_when: clam_check.stdout.find('ii  libpam-pkcs11') == -1
+
+    - name: check if use_mappers is set to pwent in pkcs11 conf file
+      become: true
+      shelL: grep '^use_mappers' "{{ target_file }}"
+      regeister: mapper
+      failed_when: 
+        - mapper.rc != 0 
+        - mapper.stdout.find('pwent') == -1 
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: install the libpam-pkcs11 package
+      become: true
+      apt:
+        name: libpam-pkcs11
+        state: present
+        update_cache: yes
+        cache_valid_time: 3600
+      register: install_package
+
+    - name: added mapper param to pkcs conf file
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        create: yes
+        owner: root
+        group: root
+        mode: 0600
+        state: present
+        regexp: '^#*\s*use_mappers.*$'
+        line: 'use_mappers = pwent'
+      register: file_updated
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: 
+        - install_package.failed == false
+        - file_updated.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

@@ -1,0 +1,37 @@
+---
+
+- set_fact:
+    stig_id: V-100541
+    stig_text: "FAILED. rsh-server package is installed"
+
+- local_action: lineinfile regexp='^V-100541' path="{{ output_path }}" state=absent
+
+- name: verfiy that the rsh-server package is not installed
+  block:
+
+    - shell: dpkg -l | egrep '^ii\s+rsh\-server\s+'
+      register: app_check
+      failed_when: app_check.rc != 1
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: remove the rsh-server package
+      become: true
+      apt:
+        name: rsh-server
+        state: absent
+      register: remove_app
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: remove_app.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

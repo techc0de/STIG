@@ -1,0 +1,37 @@
+---
+
+- set_fact:
+    stig_id: V-100539
+    stig_text: "FAILED. nis package is installed"
+
+- local_action: lineinfile regexp='^V-100539' path="{{ output_path }}" state=absent
+
+- name: verfiy that the nis package is not installed
+  block:
+
+    - shell: dpkg -l | egrep '^ii\s+nis\s+'
+      register: nis_check
+      failed_when: nis_check.rc != 1
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: remove the nis package
+      become: true
+      apt:
+        name: nis
+        state: absent
+      register: remove_nis
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: remove_nis.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

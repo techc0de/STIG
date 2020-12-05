@@ -1,0 +1,53 @@
+---
+
+- set_fact:
+    stig_id: V-100879
+    target_file: /etc/login.defs
+
+- local_action: lineinfile regexp='^V-100879' path="{{ output_path }}" state=absent
+
+- set_fact:
+    stig_text: "{{ stig_id }} FAILED. default authenticated user permissions improperly configured."
+
+- stat:
+    path: "{{ target_file }}"
+  register: login_file
+
+- name: verify the os defines default permissions for all authenticated users in souch a way that the user can only read and modify their own files.
+  block: 
+
+    - command: /bin/false
+      when: login_file.stat.exists == False
+
+    - shell: grep -i "^umask" "{{ target_file }}"
+      register: umask
+      failed_when: umask.rc != 0
+
+    - command: /bin/false
+      when: umask.stdout.find('077') == -1
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: Configure the system to define the default permission for all unauthenticated users in such a way that the user can only read and modify their own files.
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        create: yes
+        state: present
+        regexp: '^#*UMASK'
+        line: UMASK 077
+      register: config_updated
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: config_updated.failed == false
+
+    - debug:
+        var: stig_text
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

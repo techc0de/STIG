@@ -1,0 +1,71 @@
+---
+
+- set_fact:
+    stig_id: V-75569
+    stig_text: "FAILED. found local initialization files with permissions set too low."
+    user_info: {}
+    bad_path: {}
+
+- local_action: lineinfile regexp='^V-75569' path="{{ output_path }}" state=absent
+
+- name: verfiy that all local initialization files have a mode of "0740" or less permissive
+  block: 
+
+    - name: get list containing user home directories
+      become: true
+      shell: > 
+        awk -F: '($3>=1000)&&($1!="nobody"){print $1":"$6}' /etc/passwd 2>/dev/null
+      register: dirs
+      failed_when: dirs.rc == 2 or dirs.rc == 3
+
+    - set_fact:
+        user_info: "{{ user_info | combine( { item.split(':').0 : { 'user': item.split(':').0, 'path': item.split(':').1 }} ) }}"
+      with_items: "{{ dirs.stdout_lines }}"
+
+    - shell: echo "{{ item.value.user }}" $(id "{{ item.value.user }}" | cut -d ' ' -f2 | egrep -o '[0-9]+')
+      with_dict: "{{ user_info }}"
+      register: user_gid
+
+    - set_fact:
+        user_info: "{{ user_info | combine({ item.stdout.split(' ').0 : { 'uid': item.stdout.split(' ').1 } }, recursive=True ) }}"
+      with_items: "{{ user_gid.results }}"
+
+    - shell: echo "{{ item.value.user }}" $(ls -dn "{{ item.value.path }}" | cut -d ' ' -f4)
+      with_dict: "{{ user_info }}"
+      register: path_gid
+
+    - set_fact:
+        user_info: "{{ user_info | combine({ item.stdout.split(' ').0 : { 'gid': item.stdout.split(' ').1 } }, recursive=True ) }}"
+      with_items: "{{ path_gid.results }}"
+
+    - set_fact:
+        bad_path: "{{ bad_path | default({}) | combine({ item.value.user: user_info[item.value.user] } )}}"
+      with_dict: "{{ user_info }}"
+      when: "{{ item.value.gid != item.value.uid }}"
+
+    - command: /bin/false
+      when: bad_path | length > 0
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: change path group ownership
+      become: True
+      file:
+        path: "{{ item.value.path }}"
+        group: "{{ item.value.uid }}"
+      with_dict: "{{ bad_path }}"
+      register: fixed_path
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: fixed_path.changed == true
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

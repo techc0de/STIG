@@ -1,0 +1,36 @@
+---
+
+- set_fact:
+    stig_id: V-75577
+    stig_text: "FAILED. nosuid option not set on removable media mount"
+    bad_mounts: []
+
+- local_action: lineinfile regexp='^V-75577' path="{{ output_path }}" state=absent
+
+- name: check nosuid on removable media mounts
+  block: 
+
+    - shell: >
+        grep -v '^#' /etc/fstab | grep -iv nfs | grep '/mnt\|/media'
+      register: nosuid_media_check
+      failed_when: nosuid_media_check.rc == 2 or nosuid_media_check.rc == 3
+
+    - set_fact:
+        bad_mounts: "{{ bad_mounts + [ item ] }}"
+      with_items: "{{ nosuid_media_check.stdout_lines }}"
+      when: item.find('nosuid') == -1
+      
+    - command: /bin/false
+      when: bad_mounts | length > 0
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+    
+    - debug:
+        var: stig_text
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

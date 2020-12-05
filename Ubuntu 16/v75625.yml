@@ -1,0 +1,87 @@
+---
+
+- set_fact:
+    stig_id: V-75625
+    stig_text: "FAILED. Audit failure notifications are not being sent to the SA or ISSO"
+    target_file: /etc/audit/auditd.conf
+    acceptable_actions: 
+      - email
+      - syslog
+
+- local_action: lineinfile regexp='^V-75625' path="{{ output_path }}" state=absent
+
+- name: verify that the OS notifies the SA and ISSO in the event of an audit processing failure.
+  block: 
+
+    - name: check for the file
+      become: true
+      stat:
+        path: "{{ target_file }}"
+      register: audit_file
+
+    - set_fact:
+        stig_text: "FAILED. {{ target_file }} file does not exist."
+      when: audit_file.stat.exists == False
+
+    - fail:
+        msg: "{{ stig_text }}"
+      when: audit_file.stat.exists == False
+
+    - name: check for param
+      become: true
+      shell: "egrep '^space_left_action.*' {{ target_file }}"
+      register: file_check
+      failed_when: file_check.rc != 0
+
+    - set_fact:
+        event_action: "{{ file_check.stdout.split('=')[1]|trim }}"
+
+    - assert:
+        that: 
+          - event_action in acceptable_actions
+        msg: INVALID space_left_action SET
+
+    - name: email block
+      block:
+
+        - name: incase of email, check for action_mail_acct value
+          become: true
+          shell: "grep -w action_mail_acct {{ target_file }}"
+          register: action_check
+          failed_when: action_check.rc != 0
+
+        - assert:
+            that: 
+              - file_check.stdout == 'action_mail_acct = root@localhost'
+            msg: INVALID action_mail_acct VAULE
+
+      when: event_action == 'email'
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: configure "auditd" service to notify the SA and ISSO via syslog in the event of an audit processing failure.
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^\#*\s*space_left_action.*'
+        line: space_left_action = syslog
+        state: present
+        create: yes
+        owner: root
+        group: root
+        mode: 0644
+      register: config_updated
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: config_updated.failed == false
+      
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

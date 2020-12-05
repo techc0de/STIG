@@ -1,0 +1,64 @@
+---
+
+- set_fact:
+    stig_id: V-75573
+    stig_text: 'FAILED. local initialization files must not execute world-writable programs.'
+
+- local_action: lineinfile regexp='^V-75573' path="{{ output_path }}" state=absent
+
+- name: verify that local initialization files do not execute world-writable programs
+  block: 
+
+    - name: check the system for world-writable files 
+      become: true
+      shell: > 
+        find / 
+        \(
+        -path "/sys"
+        -o -path "/run"
+        -o -path "/proc"
+        -o -path "/media/ifs"
+        -o -path "/var/lib/docker"
+        -o -path "/var/lib/lxd"
+        -o -path "/var/lib/lxcfs"
+        \) -prune
+        -o -type f -perm -o=w -print 2>/dev/null
+      register: write_files
+      failed_when: write_files.rc == 2 or write_files.rc == 3
+
+    - name: check local initialization files for any of the world writeable files from above
+      become: true
+      shell: grep '{{ item }}' /home/*/.* 2>/dev/null
+      with_items: "{{ write_files.stdout_lines }}"
+      failed_when: false
+      register: bad_files
+
+    - fail:
+        msg: "{{ item.stdout }}"
+      with_items: "{{ bad_files.results }}"
+      when: item.stdout_lines | length > 0
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: change mode of files being included in initialization scripts
+      become: true
+      file:
+        path: "{{ item.item }}"
+        mode: 0755
+      with_items: "{{ bad_files.results }}"
+      when: item.stdout_lines | length > 0
+      register: fixed_path
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: fixed_path.changed == true
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

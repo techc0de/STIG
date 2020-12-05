@@ -1,0 +1,9 @@
+---
+
+- set_fact:
+    stig_id: V-75551
+    stig_text: "FAILED. must be verified manually"
+
+- local_action: lineinfile regexp='^V-75551' path="{{ output_path }}" state=absent
+- local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+

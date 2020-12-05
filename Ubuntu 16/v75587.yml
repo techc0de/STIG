@@ -1,0 +1,26 @@
+---
+
+- set_fact:
+    stig_id: V-75587
+    stig_text: "FAILED. system is not using a separate file system for user home directories."
+
+- local_action: lineinfile regexp='^V-75587' path="{{ output_path }}" state=absent
+
+- name: verify that a separate file system/partition has been created for non-privileged local interactive user home directories.
+  block: 
+
+    - shell:  grep -v '^#.*' /etc/fstab | egrep '\s+\/home\s+'
+      register: fstab_check
+      failed_when: fstab_check.rc != 0
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+    
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

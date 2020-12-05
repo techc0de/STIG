@@ -1,0 +1,62 @@
+---
+
+- set_fact:
+    stig_id: V-75631
+    stig_text: "FAILED. the audit system does not take the appropriate action when the storage volume becomes full."
+    target_file: /etc/audisp/audisp-remote.conf
+
+- local_action: lineinfile regexp='^V-75631' path="{{ output_path }}" state=absent
+
+- name: verify the action that the audit system takes when the storage volume becomes full.
+  block:
+
+    - name: check for the file
+      become: true
+      stat:
+        path: "{{ target_file }}"
+      register: audit_file
+
+    - set_fact:
+        stig_text: "FAILED. {{ target_file }} file does not exist."
+      when: audit_file.stat.exists == False
+
+    - fail:
+        msg: "{{ stig_text }}"
+      when: audit_file.stat.exists == False
+
+    - name: check for action
+      become: true
+      shell:  grep '^disk_full' "{{ target_file }}"
+      register: file_check
+      failed_when: file_check.stdout == ""
+
+    - assert:
+        that: 
+          - file_check.stdout is regex('^disk_full_action\s*\=+\s*(?:single|syslog|hault)$') != -1
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: configure the audit system to take an appropriate action when the audit storage is full.
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        create: yes
+        owner: root
+        group: root
+        state: present
+        regexp: '^#*\s*disk_full_action.*$'
+        line: 'disk_full_action=syslog'
+      register: file_updated
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_updated.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

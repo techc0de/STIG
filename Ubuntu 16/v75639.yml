@@ -1,0 +1,88 @@
+---
+
+- set_fact:
+    stig_id: V-75639
+    stig_text: 'FAILED. the audit logs are not owned by "root".'
+    target_file: /etc/audit/auditd.conf
+
+- local_action: lineinfile regexp='^V-75639' path="{{ output_path }}" state=absent
+
+- name: verify the audit logs are owned by "root".
+  block:
+
+    - name: check for the file
+      become: true
+      stat:
+        path: "{{ target_file }}"
+      register: audit_file
+
+    - set_fact:
+        stig_text: "FAILED. {{ target_file }} file does not exist."
+      when: audit_file.stat.exists == False
+
+    - fail:
+        msg: "{{ stig_text }}"
+      when: audit_file.stat.exists == False
+
+    - name: determine log path
+      become: true
+      shell: grep -iw log_file "{{ target_file }}"
+      register: path_param
+      failed_when: path_param.stdout == ""
+
+    - assert:
+        that: 
+          - path_param.stdout.find('#') == -1
+
+    - set_fact:
+        log_path: "{{ path_param.stdout.split('=')[1]|trim }}"
+
+    - name: check log file ownership 
+      become: true
+      shell: ls -la "{{ log_path }}" | cut -d' ' -f3
+      register: file_owner
+      failed_when: file_owner.stdout != "root"
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: create audit log directory
+      become: true
+      file:
+        path: "{{ log_path | dirname }}"
+        owner: root
+        group: root
+        state: directory
+      register: create_dir
+      when: log_path is defined
+
+    - name: check directory
+      become: true
+      stat:
+        path: "{{ log_path | dirname }}"
+      register: check_dir
+      when: log_path is defined
+
+    - name: configure the audit log to be protected from unauthorized read access by setting the correct permissive mode
+      become: true
+      file:
+        path: "{{ log_path }}"
+        owner: root
+        group: root
+        state: touch
+        mode: 0600
+      register: file_updated
+      when: log_path is defined
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: log_path is defined and file_updated.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

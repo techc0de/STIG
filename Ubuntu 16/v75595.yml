@@ -1,0 +1,40 @@
+---
+
+- set_fact:
+    stig_id: V-75595
+    stig_text: 'FAILED. the "/var/log" directory is not owned by root'
+
+- local_action: lineinfile regexp='^V-75595' path="{{ output_path }}" state=absent
+
+- name: verify that the /var/log directory is owned by root.
+  block:
+
+    - name: check owner of /var/log dir
+      become: true
+      shell: ls -lad /var/log | cut -d' ' -f3
+      register: dir_owner
+      failed_when: dir_owner.rc != 0 or dir_owner.stdout != 'root'
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: change the owner of the /var/log directory to root
+      become: true
+      file:
+        path: "/var/log"
+        owner: root
+        state: directory
+      register: file_perms
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_perms.changed == true
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

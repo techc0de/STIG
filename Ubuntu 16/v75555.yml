@@ -1,0 +1,55 @@
+---
+
+- set_fact:
+    stig_id: V-75555
+    stig_text: "FAILED. found files without a valid owner"
+
+- local_action: lineinfile regexp='^V-75555' path="{{ output_path }}" state=absent
+
+- name: verify all files and directories on the os have a valid owner.
+  block: 
+
+    - name: check the owner of all files and directories
+      become: true
+      shell: >
+        find / 
+        \( 
+        -path "/sys" 
+        -o -path "/proc" 
+        -o -path "/media" 
+        -o -path "/var/lib/docker" 
+        -o -path "/var/lib/lxd"
+        \) -prune  
+        -nouser 
+        2>/dev/null 
+      register: unowned
+      failed_when: unowned.rc == 2 or unowned.rc == 3
+
+    - command: /bin/false
+      when: unowned.stdout_lines | length > 0
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: assign a valid user to the unowned files and directories.
+      become: true
+      file:
+        path: "{{ item }}"
+        state: touch
+        owner: root
+        group: root
+      with_items: "{{ unowned.stdout_lines }}"
+      register: pwned
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: pwned.changed == true
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

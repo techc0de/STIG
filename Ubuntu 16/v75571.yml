@@ -1,0 +1,42 @@
+---
+
+- set_fact:
+    stig_id: V-75571
+    stig_text: "FAILED. local interactive user executable search path statement references working directory."
+    bad_path: {}
+
+- local_action: lineinfile regexp='^V-75571' path="{{ output_path }}" state=absent
+
+- name: verfiy that all local interactive user initialization files' executable search path statements do not contain statements that will reference a working directory other than the uses' home dir or system default 
+  block: 
+
+    - name: get list containing user home directories
+      become: true
+      shell: > 
+        awk -F: '($3>=1000)&&($1!="nobody"){print $6}' /etc/passwd 2>/dev/null
+      register: dirs
+      failed_when: dirs.rc == 2 or dirs.rc == 3
+
+    - name: check user directory enviornment executable path variable
+      become: true
+      shell: grep PATH "{{ item }}"/.* 2>/dev/null | grep profile | egrep -i "(::|\":|\':|:\'|:\")"
+      with_items: "{{ dirs.stdout_lines }}"
+      register: grep_output
+      failed_when: grep_output.rc == 2 or grep_output.rc == 3
+
+    - fail:
+        msg: found items with paths that allowed execution from the working directory.
+      when: item.rc == 0
+      with_items: "{{ grep_output.results }}"
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

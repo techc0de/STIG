@@ -1,0 +1,71 @@
+---
+
+- set_fact:
+    stig_id: V-75687
+    stig_text: 'FAILED. the OS does not generate audit records for all events that affect "/etc/security/opasswd"'
+    target_file: /etc/audit/audit.rules
+
+- local_action: lineinfile regexp='^V-75687' path="{{ output_path }}" state=absent
+
+- name: Verify the OS generates audit records for all account creations, modifications, disabling, and termination events that affect "/etc/security/opasswd".
+  block: 
+
+    - name: check for the file
+      become: true
+      stat:
+        path: "{{ target_file }}"
+      register: rules_file
+
+    - set_fact:
+        stig_text: "FAILED. {{ target_file }} file does not exist."
+      when: rules_file.stat.exists == False
+
+    - fail:
+        msg: "{{ stig_text }}"
+      when: rules_file.stat.exists == False
+
+    - name: check for audit rules param
+      become: true
+      shell: "grep /etc/security/opasswd {{ target_file }}"
+      register: audit_check
+      failed_when: audit_check.rc != 0
+
+    - assert:
+        that: 
+          - audit_check.stdout.find('#') == -1
+          - audit_check.stdout == '-w /etc/security/opasswd -p wa -k audit_rules_usergroup_modification'
+        msg: AUDIT RULES NOT CONFIGURED
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: configure OS to generate audit records for all account creations, modifications, disabling, and termination events that affect "/etc/security/opasswd"
+      become: true
+      lineinfile:
+        path: "/etc/audit/rules.d/opasswd.rules"
+        regexp: '^\#*.*/etc/security/opasswd.*'
+        line: -w /etc/security/opasswd -p wa -k audit_rules_usergroup_modification
+        state: present
+        create: yes
+        owner: root
+        group: root
+        mode: 0640
+      register: config_updated
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: config_updated.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+    - name: restart audit service 
+      become: true
+      shell: systemctl restart auditd.service
+      ignore_errors: yes
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

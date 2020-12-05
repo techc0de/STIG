@@ -1,0 +1,55 @@
+---
+
+- set_fact:
+    stig_id: V-75519
+
+- local_action: lineinfile regexp='^V-75519' path="{{ output_path }}" state=absent
+
+- set_fact:
+    target_file: /etc/aide/aide.conf
+    stig_text: "{{ stig_id }} FAILED. aide package not configured to verify ACL."
+
+- stat:
+    path: "{{ target_file }}"
+  register: aide_conf_file
+
+- name: verfiy the file integrity tool is configured to verify Access Control Lists (ACLs).
+  block: 
+
+    - command: /bin/false
+      when: aide_conf_file.stat.exists == False
+
+    - shell: egrep "[+]?acl" "{{ target_file }}"
+      register: acl_check
+      failed_when: acl_check.rc == 2 or acl_check.rc == 3
+
+    - command: /bin/false
+      when: acl_check.rc == 1
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: Configure the file integrity tool to check file and directory ACLs
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        owner: root
+        group: root
+        state: present
+        regexp: '^\#*(VarFile.*)'
+        line: \1+acl
+        backrefs: yes
+      register: config_updated
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: config_updated.failed == false
+
+    - debug:
+        var: stig_text
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

@@ -1,0 +1,45 @@
+---
+
+- set_fact:
+    stig_id: V-75479
+
+- local_action: lineinfile regexp='^V-75479' path="{{ output_path }}" state=absent
+
+- name: ensure that there are no instances of nullok inside the /etc/pam.d directory
+  block: 
+
+    - shell: 'grep -i pam_unix.so /etc/pam.d/* | grep nullok | cut -d: -f1'
+      register: nullok_detections
+
+    - set_fact:
+        stig_text: "{{ stig_id }} FAILED. detected nullok inside the /etc/pam.d directory"
+      when: nullok_detections.stdout != ""
+
+    - command: /bin/false
+      when: nullok_detections.stdout != ""
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: remove any detected instance of nullok
+      become: true
+      lineinfile:
+        path: "{{ item }}"
+        regexp: '(.*)(nullok\_secure|nullok)(.*)'
+        line: '\1\3'
+        backrefs: yes
+      with_items: "{{ nullok_detections.stdout_lines }}"
+      register: removed_nullok
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: removed_nullok.msg is defined and removed_nullok.msg == 'All items completed'
+
+    - debug:
+        var: stig_text
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

@@ -1,0 +1,58 @@
+---
+
+- set_fact:
+    stig_id: V-75497
+
+- local_action: lineinfile regexp='^V-75497' path="{{ output_path }}" state=absent
+
+- set_fact:
+    stig_text: "{{ stig_id }} FAILED. /etc/pam.d/login misconfigured and may not display last login"
+    login_config_file: /etc/pam.d/login
+
+- stat:
+    path: "{{ login_config_file }}"
+  register: login_file
+
+- name: verify users are provided with feedback on when account accesses last occured
+  block: 
+
+    - command: /bin/false
+      when: login_file.stat.exists == False
+
+    - shell: "grep '^session.*pam_lastlog' {{ login_config_file }}"
+      register: login_check
+      failed_when: login_check.rc == 2 or login_check.rc == 3
+
+    - command: /bin/false
+      when: login_check.rc == 1
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: configure the os to provide users with feedback on when account accesses last occurred
+      become: true
+      pamd:
+        path: '/etc/pam.d/'
+        name: login
+        type: session
+        control: required
+        module_path: pam_loginuid.so
+        new_type: session
+        new_control: required
+        new_module_path: pam_lastlog.so
+        module_arguments: 'showfailed'
+        state: after
+      register: config_updated
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: config_updated.failed == false
+
+    - debug:
+        var: stig_text
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

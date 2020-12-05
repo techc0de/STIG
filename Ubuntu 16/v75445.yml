@@ -1,0 +1,39 @@
+---
+
+- set_fact:
+    stig_id: V-75445
+    stig_text: "FAILED. root password is not locked."
+
+- local_action: lineinfile regexp='^V-75445' path="{{ output_path }}" state=absent
+
+- name: check that root login is disabled
+  block: 
+
+    - name: check that root password is locked
+      become: true
+      shell: passwd -S root
+      register: root_check
+
+    - command: /bin/false
+      when: root_check.stdout.find("root L") == -1
+
+    - set_fact:
+        stig_text: "PASSED. note: command used 'sudo passwd -S root'"
+
+  rescue:
+
+    - name: lock root password
+      become: true
+      shell: passwd -l root
+      register: root_fix
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: root_fix.stdout.find("password expiry information changed") != -1
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

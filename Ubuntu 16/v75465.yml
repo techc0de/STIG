@@ -1,0 +1,57 @@
+---
+
+- set_fact:
+    stig_id: V-75465
+
+- local_action: lineinfile regexp='^V-75465' path="{{ output_path }}" state=absent
+
+- stat:
+    path: /etc/pam.d/common-password
+  register: pw_file
+
+- name: check that password complexity requires at least 1 special character
+  block: 
+
+    - set_fact:
+        stig_text: "{{ stig_id }} FAILED. common password file does not exist."
+      when: pw_file.stat.exists == False
+
+    - command: /bin/false
+      when: pw_file.stat.exists == False
+
+    - shell: grep ^password /etc/pam.d/common-password | grep pam_unix.so | grep sha512 | wc -l 
+      register: encryption_check
+
+    - set_fact:
+        stig_text: "{{ stig_id }} FAILED. sha512 encryption option is not set in the /etc/pam.d/common-password file"
+      when: encryption_check.stdout == "0"
+
+    - command: /bin/false
+      when: encryption_check.stdout == "0"
+      
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: Configure password encryption
+      become: true
+      lineinfile:
+        path: /etc/pam.d/common-password
+        create: no
+        state: present
+        regexp: '^(password.*pam_unix.so)\s*(obscure*)\s*(.*)$'
+        line: '\1 \2 sha512 \3'
+        backrefs: yes
+      register: encryption_updated
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: encryption_updated.failed == false
+
+    - debug:
+        var: stig_text
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

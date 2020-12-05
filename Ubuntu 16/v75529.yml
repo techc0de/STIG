@@ -1,0 +1,57 @@
+---
+
+- set_fact:
+    stig_id: V-75529
+    stig_text: "FAILED. APT not configured to remove unused components."
+    target_file: /etc/apt/apt.conf.d/50unattended-upgrades
+
+- local_action: lineinfile regexp='^V-75529' path="{{ output_path }}" state=absent
+
+- stat:
+    path: "{{ target_file }}"
+  register: apt_conf_file
+
+- name: verify APT is configured to remove all software components after updating.
+  block: 
+
+    - assert:
+        that:
+          - apt_conf_file.stat.exists
+
+    - shell: egrep -i 'remove-unused-dep.*false' "{{ target_file }}"
+      register: bad_apt
+      failed_when: bad_apt.rc == 2 or bad_apt.rc == 3
+
+    - assert:
+        that:
+          - bad_apt.stdout_lines | length == 0
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: ensure APT config file exists
+      become: true
+      file:
+        path: "{{ target_file }}"
+        state: touch
+
+    - name: configure APT to remove all software components after updated versions have been installed.
+      become: true
+      replace:
+        path: "{{ target_file }}"
+        regexp: '\/\/*\s*(.*Remove-Unused-Dependencies.*\")false(\";)'
+        replace: \1true\2
+      register: config_updated
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: config_updated.changed == true
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

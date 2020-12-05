@@ -1,0 +1,64 @@
+---
+
+- set_fact:
+    stig_id: V-75443
+
+- local_action: lineinfile regexp='^V-75443' path="{{ output_path }}" state=absent
+
+- stat:
+    path: /etc/security/limits.conf
+  register: limits_file
+
+- name: check session limit configuration
+  block: 
+
+    - set_fact:
+        stig_text: "{{ stig_id }} FAILED. session limits configuration file does not exist."
+      when: limits_file.stat.exists == False
+
+    - command: /bin/false
+      when: limits_file.stat.exists == False
+
+    - set_fact:
+        contents: "{{ lookup('file', '/etc/security/limits.conf') }}"
+
+    - set_fact:
+        stig_text: "{{ stig_id }} FAILED. Could not read session limits configuration file content."
+      when: contents is not defined
+      
+    - command: /bin/false
+      when: contents is not defined
+
+    - set_fact:
+        stig_text: "{{ stig_id }} FAILED. session max logins not properly configured."
+      when: contents.find("* hard maxlogins 10")
+
+    - command: /bin/false
+      when: contents.find("* hard maxlogins 10")
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: Configure session limits for login
+      become: true
+      lineinfile:
+        path: /etc/security/limits.conf
+        insertbefore: BOF
+        create: yes
+        state: present
+        line: |
+          * hard maxlogins 10
+      register: config_updated
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: config_updated.failed == false
+
+    - debug:
+        var: stig_text
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

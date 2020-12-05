@@ -1,0 +1,55 @@
+---
+
+- set_fact:
+    stig_id: V-75523
+
+- local_action: lineinfile regexp='^V-75523' path="{{ output_path }}" state=absent
+
+- set_fact:
+    target_file: /etc/default/aide
+    stig_text: "{{ stig_id }} FAILED. aide package not configured to notify system administrators."
+
+- stat:
+    path: "{{ target_file }}"
+  register: aide_default_file
+
+- name: verfiy the file integrity tool notifies the system administrator.
+  block: 
+
+    - command: /bin/false
+      when: aide_default_file.stat.exists == False
+
+    - shell: grep ^SILENTREPORTS.*no {{ target_file }}
+      register: acl_check
+      failed_when: acl_check.rc == 2 or acl_check.rc == 3
+
+    - command: /bin/false
+      when: acl_check.rc == 1
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: modify the SILENTREPORTS parameter in the "/etc/default/aide" file with a value of "no"
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        owner: root
+        group: root
+        state: present
+        regexp: '^\#*(SILENTREPORTS*).*'
+        line: \1=no
+        backrefs: yes
+      register: config_updated
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: config_updated.failed == false
+
+    - debug:
+        var: stig_text
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

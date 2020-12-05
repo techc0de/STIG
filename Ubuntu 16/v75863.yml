@@ -1,0 +1,79 @@
+---
+
+- set_fact:
+    stig_id: V-75863
+    stig_text: 'FAILED. remote access methods are not being logged'
+    target_file: /etc/rsyslog.d/50-default.conf
+
+- local_action: lineinfile regexp='^V-75863' path="{{ output_path }}" state=absent
+
+- name: verify that the OS system monitors all remote access methods.
+  block: 
+
+    - name: stat target_file
+      become: true
+      stat:
+        path: "{{ target_file }}"
+      register: stat_file
+
+    - set_fact:
+        stig_text: "FAILED. rsyslog config file does not exist."
+      when: stat_file.stat.exists == False
+
+    - fail: 
+        msg: "{{ stig_text }}"
+      when: stat_file.stat.exists == False
+
+    - name: check that remote access methods are being logged
+      become: true
+      shell: grep -E '^(auth\.\*|authpriv\.\*|daemon\.\*)' "{{ target_file }}"
+      register: grep_results
+      failed_when: 
+        - grep_results.stdout.find('auth.*') == -1 
+        - grep_results.stdout.find('authpriv.*') == -1 
+        - grep_results.stdout.find('daemon.*') == -1
+      
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+    - name: touch the target file just to avoid failure in the next step
+      become: true
+      shell: touch "{{ target_file }}"
+
+    - name: remove any previous logging configuation
+      become: true
+      replace:
+        path: "{{ target_file }}"
+        regexp: >
+          ^\#*\s*{{ item }}\..*
+      with_items:
+        - 'auth'
+        - 'authpriv'
+        - 'daemon'
+
+    - name: configure the OS to monitor all remote access methods
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        line: |
+          auth.*,authpriv.* /var/log/secure
+          daemon.notice /var/log/messages
+      register: config_updated
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: config_updated.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+    - name: restart rsyslog.service
+      become: true
+      service:
+        name: rsyslog
+        state: restarted
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

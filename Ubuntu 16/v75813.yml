@@ -1,0 +1,62 @@
+---
+
+- set_fact:
+    stig_id: V-75813
+    stig_text: 'FAILED. the system clock is not configured correctly.'
+    target_file: /etc/ntp.conf
+
+- local_action: lineinfile regexp='^V-75813' path="{{ output_path }}" state=absent
+
+- name: the system clock must be configured to compare the system clock at least every 24 hours to the authoritative time source
+  block: 
+
+    - name: check the value of "maxpoll" in the "/etc/ntp.conf" file 
+      shell: grep -i maxpoll "{{ target_file }}"
+      register: poll_value
+      failed_when: poll_value.stdout != "maxpoll 17"
+
+    - name: check the server value in the "/etc/ntp.conf" file 
+      shell: grep -i '^server' "{{ target_file }}"
+      register: server_value
+      failed_when: server_value.stdout.find('0.us.pool.ntp.org iburst') == -1
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: change the maxpoll value
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^#*\s*maxpoll.*'
+        line: 'maxpoll 17'
+        create: false
+      register: update_maxpoll
+      ignore_errors: yes
+
+    - name: change the serverl value
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^#*\s*serverl.*'
+        line: 'server 0.us.pool.ntp.org iburst'
+        create: false
+      register: update_server
+      ignore_errors: yes
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: update_maxpoll.failed == false and update_server.failed == false 
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+    - name: restart ntp service 
+      become: true
+      shell: systemctl restart ntp.service
+      ignore_errors: yes
+    
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

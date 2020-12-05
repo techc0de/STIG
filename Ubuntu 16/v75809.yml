@@ -1,0 +1,42 @@
+---
+
+- set_fact:
+    stig_id: V-75809
+    stig_text: "FAILED. firewall is misconfigured."
+    bad_rules: []
+
+- local_action: lineinfile regexp='^V-75809' path="{{ output_path }}" state=absent
+
+- name: verify the firewall is configured to employ a deny-all, allow-by-exception policy for allowing connections to other systems
+  block: 
+
+    - name: check ufw rules
+      become: true
+      shell: "ufw show added 2>/dev/null | grep '^ufw' | cut -d ' ' -f2-"
+      register: ufw_check
+      failed_when: ufw_check.rc != 0
+
+    - name: cross-reference existing rules with allowed rules
+      set_fact:
+        bad_rules: "{{ bad_rules + [ item ] }}"
+      with_items: "{{ ufw_check.stdout_lines }}"
+      when: item not in ufw
+        
+    - fail:
+        msg: found unauthorized firewall rules
+      when: bad_rules | length > 0
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - debug:
+        var: bad_rules
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

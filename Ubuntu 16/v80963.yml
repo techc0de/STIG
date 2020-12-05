@@ -1,0 +1,68 @@
+---
+
+- set_fact:
+    stig_id: V-80963
+    stig_text: 'FAILED. the audit log files have an invalid access mode'
+    target_file: /etc/audit/auditd.conf
+    default_log_file_path: /var/log/audit/audit.log
+
+- local_action: lineinfile regexp='^V-80963.yml' path="{{ output_path }}" state=absent
+
+- name: verify that the audit log files have a mode of "0640" or less permissive
+  block: 
+
+    - name: check where the audit logs are stored on the system
+      block:
+
+        - name: check where the audit logs are stored on the system
+          become: true
+          shell: grep -w '^log_file' "{{ target_file }}"
+          register: log_file_param
+          failed_when: log_file_param.stdout == ""
+
+        - set_fact:
+            log_file_path: "{{ log_file_param.stdout.split('=')[1]|trim }}"
+
+      rescue:
+
+        - name: add log_file param to audit config file
+          become: true
+          lineinfile:
+            path: "{{ target_file }}"
+            regexp: '^#*\s*log_file\s.*'
+            line: log_file = "{{ default_log_file_path }}"
+            create: true
+            owner: root
+            group: root
+            mode: 0644
+
+        - set_fact:
+            log_file_path: "{{ default_log_file_path }}"
+
+
+    - name: check the file permissions
+      become: true
+      shell: stat -c "%a" "{{ log_file_path }}"
+      register: perms
+      failed_when: perms.stdout != '640'
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: change the owner of the audit log file
+      become: true
+      shell: chmod 0640 "{{ log_file_path }}"
+      register: file_perms
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_perms.rc == 0
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

@@ -1,0 +1,60 @@
+---
+
+- set_fact:
+    stig_id: V-75857
+
+- local_action: lineinfile regexp='^V-75857' path="{{ output_path }}" state=absent
+
+- set_fact:
+    stig_text: "{{ stig_id }} FAILED. openssh meta package not installed"
+
+- name: verify the openssh package is installed.
+  block: 
+
+    - shell: dpkg -l | egrep '^ii\s+openssh.*'
+      register: ssh_check
+      failed_when: ssh_check.rc != 0
+
+    - shell: systemctl status sshd.service
+      register: daemon_check
+      failed_when: daemon_check.rc == 2 or daemon_check.rc == 3
+
+    - command: /bin/false
+      when: daemon_check.stdout.find('active (running)') == -1
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - debug:
+        var: ssh_check
+
+    - name: install the openssh meata package
+      become: true
+      apt:
+        name: 
+          - openssh-client
+          - openssh-server
+          - openssh-sftp-server
+        state: present
+        update_cache: yes
+        cache_valid_time: 3600
+      register: install_ssh
+
+    - shell: systemctl status sshd.service
+      register: daemon_check
+      failed_when: daemon_check.rc == 2 or daemon_check.rc == 3
+      when: install_ssh.failed == false
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: daemon_check.stdout.find('active (running)') != -1
+      
+    - debug:
+        var: stig_text
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes
+

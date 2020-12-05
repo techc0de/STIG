@@ -1,0 +1,61 @@
+---
+
+- set_fact:
+    stig_id: V-75847
+    stig_text: "FAILED. SSH daemon does not perform strict mode checking of home directory configuration files."
+    target_file: /etc/ssh/sshd_config
+
+- local_action: lineinfile regexp='^V-75847' path="{{ output_path }}" state=absent
+
+- name: verify the SSH daemon performs strict mode checking of home directory configuration files.
+  block: 
+
+    - stat:
+        path: "{{ target_file }}"
+      register: ssh_file
+
+    - fail: 
+        msg: missing ssh_config file
+      when: ssh_file.stat.exists == False
+
+    - shell: "grep StrictModes {{ target_file }}"
+      register: ssh_check
+      failed_when: ssh_check.rc != 0
+
+    - assert:
+        that: 
+          - ssh_check.stdout == 'StrictModes yes'
+        msg: STRICT MODE CHECKING NOT CONFIGURED
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: configure SSH to perform strict mode checking of home directory configuration files
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^\#*\s*StrictModes.*'
+        line: StrictModes yes
+        state: present
+        create: yes
+        owner: root
+        group: root
+        mode: 0644
+      register: config_updated
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: config_updated.failed == false
+      
+    - name: restart audit service 
+      become: true
+      shell: systemctl restart sshd.service
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

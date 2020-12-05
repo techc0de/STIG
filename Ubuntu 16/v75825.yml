@@ -1,0 +1,95 @@
+---
+
+- set_fact:
+    stig_id: V-75825
+    stig_text: "FAILED. os does not display the Standard Mandatory DoD Notice and Consent Banner before granting local or remote access to the system via a ssh logon."
+    target_file: /etc/ssh/sshd_config
+    banner_file: /etc/issue.net
+
+- local_action: lineinfile regexp='^V-75825' path="{{ output_path }}" state=absent
+
+- name: verify that root login via ssh is disabled.
+  block:
+
+    - stat:
+        path: "{{ target_file }}"
+      register: ssh_file
+      failed_when: ssh_file.stat.exists == false
+
+    - shell: grep -i '^banner' "{{ target_file }}" 2>/dev/null | cut -d ' ' -f2
+      register: shell_check
+      failed_when: shell_check.rc != 0
+
+    - stat:
+        path: "{{ item }}"
+      register: banner_stat
+      with_items: "{{ shell_check.stdout }}"
+      failed_when: banner_stat.stat.exists == false
+
+    - shell: grep "You are accessing a U.S. Government (USG) Information System (IS) that is provided for USG-authorized use only" "{{ shell_check.stdout }}"
+      register: issue_check
+      failed_when: issue_check.rc != 0
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: configure the SSH daemon to display standard DoD message 
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        line: >
+          Banner {{ banner_file }}
+        regexp: '^#*\s*Banner.*'
+        state: present
+      register: set_banner_file
+
+    - name: write standard DoD messange into Banner file.
+      become: true
+      lineinfile:
+        path: "{{ banner_file }}"
+        create: yes
+        line: | 
+          You are accessing a U.S. Government (USG) Information System (IS) that is provided for USG-authorized use only.
+
+          By using this IS (which includes any device attached to this IS), you consent to the following conditions:
+
+              - The USG routinely intercepts and monitors communications on this IS for
+              purposes including, but not limited to, penetration testing, COMSEC
+              smonitoring, network operations and defense, personnel misconduct (PM), law
+              enforcement (LE), and counterintelligence (CI) investigations.
+
+              - At any time, the USG may inspect and seize data stored on this IS.
+
+              - Communications using, or data stored on, this IS are not private, are
+              subject to routine monitoring, interception, and search, and may be disclosed
+              or used for any USG-authorized purpose.
+
+              - This IS includes security measures (e.g., authentication and access controls)
+              to protect USG interests--not for your personal benefit or privacy.
+
+              - Notwithstanding the above, using this IS does not constitute consent to PM,
+              LE or CI investigative searching or monitoring of the content of privileged
+              communications, or work product, related to personal representation or services
+              by attorneys, psychotherapists, or clergy, and their assistants. Such
+              communications and work product are private and confidential. See User
+              Agreement for details.
+      register: write_banner_file
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: set_banner_file.failed == false and write_banner_file.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+    - name: restart sshd.service
+      become: true
+      service:
+        name: sshd
+        state: restarted
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

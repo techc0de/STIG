@@ -1,0 +1,65 @@
+---
+
+- set_fact:
+    stig_id: V-75859
+    stig_text: "FAILED. the audit system does not log locally when the network is unavailable."
+    target_file: /etc/audisp/audisp-remote.conf
+
+- local_action: lineinfile regexp='^V-75859' path="{{ output_path }}" state=absent
+
+- name: verify the audit system logs locally when the network is unavailable.
+  block:
+
+    - name: check for the file
+      become: true
+      stat:
+        path: "{{ target_file }}"
+      register: audit_file
+
+    - set_fact:
+        stig_text: "FAILED. {{ target_file }} file does not exist."
+      when: audit_file.stat.exists == False
+
+    - fail:
+        msg: "{{ stig_text }}"
+      when: audit_file.stat.exists == False
+
+    - name: check audisp config file
+      become: true
+      shell: egrep -w '^network_failure_action\s+\=\s+(syslog|single|halt)' "{{ target_file }}"
+      register: shell_check
+      failed_when: shell_check.rc != 0
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: configure the audit system to log locally when the network is unavailable.
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        create: yes
+        owner: root
+        group: root
+        mode: 0600
+        state: present
+        regexp: '^#*\s*network_failure_action.*$'
+        line: 'network_failure_action = syslog'
+      register: file_updated
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_updated.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+    - name: restart audit service 
+      become: true
+      shell: systemctl restart auditd.service
+      ignore_errors: yes
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

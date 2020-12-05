@@ -1,0 +1,37 @@
+---
+
+- set_fact:
+    stig_id: V-75817
+    stig_text: 'FAILED. system timezone is not UTC or GMT.'
+
+- local_action: lineinfile regexp='^V-75817' path="{{ output_path }}" state=absent
+
+- name: time zone must be configured to use UTC or GMT
+  block: 
+
+    - name: check system timezone 
+      become: true
+      shell: grep timedatectl status | grep -i "time zone"
+      register: timezone_value
+      failed_when: timezone_value.stdout.find('UTC') == -1
+      
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: configure the system time zone to use UTC
+      become: true
+      shell: timedatectl set-timezone UTC
+      register: update_tz
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: update_tz.rc == 0
+      
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

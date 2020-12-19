@@ -1,0 +1,37 @@
+---
+
+# http://www.oznetnerd.com/jinja2-map-filter/
+
+# requires NTC-Ansible - Installation instructions can be found here - http://www.oznetnerd.com/installing-ntc-ansible/
+
+# Example Usage:
+# ansible-playbook interface_map.yml -i hosts.ini --extra-vars "hosts=gns3 username=cisco password=cisco connection=ssh platform=cisco_ios secret=cisco command='show ip interface brief'"
+
+
+- hosts: "{{ hosts }}"
+  connection: local
+  gather_facts: no
+
+  vars:
+    provider:
+      host: "{{ ansible_host }}"
+      username: "{{ username }}"
+      password: "{{ password }}"
+      platform: "{{ platform }}"
+
+  tasks:
+
+  - name: ntc_show
+    ntc_show_command:
+      provider: "{{ provider }}"
+      connection: "{{ connection }}"
+      command: "{{ command }}"
+      secret: "{{ secret }}"
+    register: results
+
+  - name: DEBUG - print original results
+    debug: msg={{ results }}
+
+  - name: DEBUG - print extracted results
+    debug: msg={{ results.response | map(attribute='intf') | list }}
+

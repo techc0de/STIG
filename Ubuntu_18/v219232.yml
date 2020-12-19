@@ -1,0 +1,61 @@
+---
+
+- set_fact:
+    stig_id: V-219232
+    stig_text: "FAILED. Audit configuration file is write-accessable by unathorized users."
+    target_file: /etc/audit/auditd.conf
+
+- local_action: lineinfile regexp='^V-219232' path="{{ output_path }}" state=absent
+
+- name: Ubuntu 18 must allow only authorized accounts to own the audit log directory.
+  block: 
+    - name: check for the file
+      become: true
+      stat:
+        path: "{{ target_file }}"
+      register: rules_file
+
+    - set_fact:
+        stig_text: "FAILED. {{ target_file }} file does not exist."
+      when: rules_file.stat.exists == False
+
+    - name: check for audit logs path
+      become: true
+      shell: grep -iw log_file /etc/audit/auditd.conf | awk '{print $3}'
+      register: log_file_path
+
+    - name: check for log ownership
+      become: true
+      shell: stat -c "%n %U" "{{ log_file_path }}" | awk '{print $2}'
+      register: ownership_check
+    
+
+    - assert:
+        that: 
+          - ownership_check.stdout.find('root') != -1
+
+    - set_fact:
+        stig_text: "Failed"
+      when: log_file_path.stdout != '/var/log/audit/audit.log'         
+
+  rescue:
+    - name: change the file ownership of "/var/log/audit" to root.
+      become: true
+      file:
+        path: "/var/log/audit"
+        owner: root
+        mode: 0640           
+        state: directory
+        recurse: yes
+      register: file_perms_conf
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_perms_conf.changed == true
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+

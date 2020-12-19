@@ -1,0 +1,75 @@
+---
+
+- set_fact:
+    stig_id: V-219160
+    stig_text: "FAILED. Ubuntu isn't configured to preserve log records from failure events."
+
+- local_action: lineinfile regexp='^V-219160' path="{{ output_path }}" state=absent
+
+- name: Check if log package is installed.
+  block: 
+    - name: Gather package facts.
+      become: true
+      package_facts:
+        manager: "auto"
+      
+    - name: validating if the package is installed
+      debug:
+        msg: "{{ item }} is installed "
+      when: '"{{ item }}" in ansible_facts.packages'
+      with_items:
+        - rsyslog
+      register: rsyslog_check
+
+    
+    - name: check that log service is enabled
+      become: true
+      shell: systemctl is-enabled rsyslog        
+      register: service_status
+      failed_when: service_status.rc != 0 or service_status.stdout == 'disabled'
+
+
+    - name: check that log service is running.
+      become: true
+      shell: systemctl is-active rsyslog
+      register: active_status
+      failed_when: active_status.rc != 0 or active_status.stdout == 'inactive'
+        
+    - set_fact:
+        stig_text: "PASSED"
+    
+
+  rescue:
+
+    - name: Install log service package.
+      become: true
+      apt:
+        name: rsyslog
+        state: present
+        update_cache: yes
+        cache_valid_time: 3600
+      register: installation
+      
+    - name: Ensure log service is enabled and running.
+      become: true
+      shell: |
+        systemctl enable rsyslog
+        systemctl restart rsyslog
+      register: start_service
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: installation.changed or start_service.rc == 0
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+
+
+
+
+
+
+

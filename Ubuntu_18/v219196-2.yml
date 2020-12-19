@@ -25,11 +25,14 @@
       register: audit_tools
       failed_when: audit_tools.stat.pw_name != 'root'
     
-    - set_fact:
-        stig_text: "{{ stig_id }} FAILED. Audit tools aren't own by root user or audit tool isn't exist."
-      # when: audit_tools.stat is not defined
-      when: audit_tools.results|map(attribute='stat.exists') is undefined
-   
+  
+    - name: ensure all audit tools are exists
+      assert:
+        that:
+          - audit_tools.results | map(attribute='stat.exists') is all
+        fail_msg: One or more audit tools isn't exist.
+        success_msg: Passed
+
     - set_fact:
         stig_text: "PASSED"
     

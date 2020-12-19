@@ -1,0 +1,55 @@
+---
+
+- set_fact:
+    stig_id: -219234
+    stig_text: 'FAILED. audit configuration files are write-accessible by unauthorized users'
+    target_files: 
+      - /etc/audit/audit.rules
+      - /etc/audit/auditd.conf
+      - /etc/audit/rules.d
+
+- local_action: lineinfile regexp='^-219234' path="{{ output_path }}" state=absent
+
+- name: verify that the "/etc/audit/audit.rules", "/etc/audit/rules.d/*" and "/etc/audit/auditd.conf"  files have mode "0640" or less permissive
+  block: 
+
+    - name: find any file in the /etc/audit/rules.d directory
+      become: true
+      find:
+        paths: "{{ target_files }}"
+        file_type: file
+        recurse: yes
+      register: file_perms
+
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: change the permissions of the file "/etc/audit/audit.rule" to "0640".
+      become: true
+      file:
+        path: "/etc/audit/audit.rule"
+        mode: 0640
+        state: touch
+      register: file_perms_rule
+      
+    - name: change the permissions of the file "/etc/audit/auditd.conf" to "0640".
+      become: true
+      file:
+        path: "/etc/audit/auditd.conf"
+        mode: 0640
+        state: touch
+      register: file_perms_conf
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_perms_rule.changed == true and file_perms_conf == true
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

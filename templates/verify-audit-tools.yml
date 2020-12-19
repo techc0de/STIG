@@ -1,0 +1,50 @@
+---
+
+- set_fact:
+    stig_id: V-75653
+    stig_text: 'FAILED. the audit tools are not protected from unauthorized access'
+
+- local_action: lineinfile regexp='^V-75653' path="{{ output_path }}" state=absent
+
+- name: verify the audit tools are protected from unauthorized access, deletion, or modification by checking the permissive mode.
+  block: 
+
+    - name: check the octal permission of each audit tool.
+      become: true
+      shell: >
+        stat -c "%a %n" 
+        /sbin/auditctl 
+        /sbin/aureport 
+        /sbin/ausearch 
+        /sbin/autrace 
+        /sbin/auditd 
+        /sbin/audispd 
+        /sbin/augenrules 
+        | grep -v '^755'
+      register: lib_files
+      failed_when: lib_files.stdout != ''
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: configure the audit tools to be protected from unauthorized access
+      become: true
+      file:
+        path: "{{ item }}"
+        mode: 0755
+        state: touch
+      with_items: "{{ lib_files.stdout_lines }}"
+      register: file_perms
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_perms.changed == true
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

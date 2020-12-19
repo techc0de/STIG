@@ -1,0 +1,12 @@
+- hosts: all
+  tasks:
+    - name: gather list of files
+      shell: ls {{ item }}
+      register: files
+      with_items:
+        - /app/psoft/test/*/list.txt
+        - /app/psoft/test/*/context.xml
+ 
+    - name: use shell to print list of file paths
+      shell: "echo {{ item }}"
+      with_items: "{{ files.results|map(attribute='stdout_lines')|list }}"

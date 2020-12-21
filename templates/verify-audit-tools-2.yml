@@ -1,17 +1,17 @@
 ---
 
 - set_fact:
-    stig_id: V-219195
-    stig_text: "FAILED. Audit tools aren't configured with mode of 0755 or less permissive."
+    stig_id: V-219196
+    stig_text: 'FAILED. Audit tools are write-accessible by unauthorized users.'
 
-- local_action: lineinfile regexp='^V-219195' path="{{ output_path }}" state=absent
+- local_action: lineinfile regexp='^V-219196' path="{{ output_path }}" state=absent
 
-- name: Ensure audit tools have 0755 permissions.
+- name: Ensure audit tools are own by root user.
   block: 
-    - name: check audit tools permissions.
+    - name: Verify the specified audit tools are exists.
       become: true
       stat:
-        path: "/sbin/{{ audit_loop }}"
+        path: "/sbin/{{ item }}"
       loop:
         - auditctl
         - aureport
@@ -20,33 +20,36 @@
         - auditd
         - audispd
         - augenrules
-      loop_control:
-        loop_var: audit_loop
       register: audit_tools
-      failed_when: audit_tools.stat.mode != '0755'
     
-    - set_fact:
-        stig_text: "{{ stig_id }} FAILED. Audit tools don't have 0755 permissions."
-      when: audit_tools.stat.mode != '0755' or audit_tools.stat.exists == false
-   
+    - name: Verify the ownership of filesystems are belong to root.
+      loop: |
+        {{ audit_tools.results | map(attribute='item')
+        | zip(audit_tools.results | map(attribute='stat.pw_name'))
+        | list }}
+
+      assert:
+        that: item.1 == 'root'
+      loop_control:
+        label: "{{ item.0 }}"
+
     - set_fact:
         stig_text: "PASSED"
     
-
   rescue:
 
-    - name: change the audit tools' permissions to 0755.
+    - name: change the audit tools ownership to root.
       become: true
       file:
-        path: "/sbin/{{ item.audit_loop }}"
-        mode: 0755
+        path: "/sbin/{{ item.item }}"
+        owner: root
         state: "{{ 'file' if item.stat.exists else 'touch' }}"
       loop: "{{ audit_tools.results }}"
       register: file_perms_rule 
   
     - set_fact:
         stig_text: "PASSED"
-      when: file_perms_rule.rc == 0
+      when: file_perms_rule.changed
 
     - debug:
         msg: "{{ stig_id }} {{ stig_text }}"

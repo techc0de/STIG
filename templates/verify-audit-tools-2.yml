@@ -38,7 +38,7 @@
     
   rescue:
 
-    - name: change the audit tools ownership to root.
+    - name: change the audit tools ownership to root and create audit tools if it doesn't exist.
       become: true
       file:
         path: "/sbin/{{ item.item }}"

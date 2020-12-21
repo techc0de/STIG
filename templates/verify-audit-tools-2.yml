@@ -22,7 +22,7 @@
         - augenrules
       register: audit_tools
     
-    - name: Verify the ownership of filesystems are belong to root.
+    - name: Verify the ownership of audit tools are belong to root.
       loop: |
         {{ audit_tools.results | map(attribute='item')
         | zip(audit_tools.results | map(attribute='stat.pw_name'))

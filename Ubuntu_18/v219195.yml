@@ -8,10 +8,10 @@
 
 - name: Ensure audit tools have 0755 permissions.
   block: 
-    - name: check audit tools permissions.
+    - name: Verify the specified audit tools are exists.
       become: true
       stat:
-        path: "/sbin/{{ audit_loop }}"
+        path: "/sbin/{{ item }}"
       loop:
         - auditctl
         - aureport
@@ -20,25 +20,28 @@
         - auditd
         - audispd
         - augenrules
-      loop_control:
-        loop_var: audit_loop
       register: audit_tools
-      failed_when: audit_tools.stat.mode != '0755'
+      
+    - name: Verify the permissions of audit tools have 0755 octal digits.
+      loop: |
+        {{ audit_tools.results | map(attribute='item')
+        | zip(audit_tools.results | map(attribute='stat.mode'))
+        | list }}
+
+      assert:
+        that: item.1 == '0755'
+      loop_control:
+        label: "{{ item.0 }}"
     
-    - set_fact:
-        stig_text: "{{ stig_id }} FAILED. Audit tools don't have 0755 permissions."
-      when: audit_tools.stat.mode != '0755' or audit_tools.stat.exists == false
-   
     - set_fact:
         stig_text: "PASSED"
     
-
   rescue:
 
-    - name: change the audit tools' permissions to 0755.
+    - name: change the audit tools' permissions to 0755 and create audit tool if it doesn't exist.
       become: true
       file:
-        path: "/sbin/{{ item.audit_loop }}"
+        path: "/sbin/{{ item.item }}"
         mode: 0755
         state: "{{ 'file' if item.stat.exists else 'touch' }}"
       loop: "{{ audit_tools.results }}"
@@ -46,7 +49,7 @@
   
     - set_fact:
         stig_text: "PASSED"
-      when: file_perms_rule.rc == 0
+      when: file_perms_rule.changed
 
     - debug:
         msg: "{{ stig_id }} {{ stig_text }}"

@@ -1,50 +1,65 @@
 ---
 
 - set_fact:
-    stig_id: V-75653
-    stig_text: 'FAILED. the audit tools are not protected from unauthorized access'
+    stig_id: V-219195
+    stig_text: "FAILED. Audit tools aren't configured with mode of 0755 or less permissive."
 
-- local_action: lineinfile regexp='^V-75653' path="{{ output_path }}" state=absent
+- local_action: lineinfile regexp='^V-219195' path="{{ output_path }}" state=absent
 
-- name: verify the audit tools are protected from unauthorized access, deletion, or modification by checking the permissive mode.
+- name: Ensure audit tools have 0755 permissions.
   block: 
-
-    - name: check the octal permission of each audit tool.
+    - name: Verify the specified audit tools are exists.
       become: true
-      shell: >
-        stat -c "%a %n" 
-        /sbin/auditctl 
-        /sbin/aureport 
-        /sbin/ausearch 
-        /sbin/autrace 
-        /sbin/auditd 
-        /sbin/audispd 
-        /sbin/augenrules 
-        | grep -v '^755'
-      register: lib_files
-      failed_when: lib_files.stdout != ''
+      stat:
+        path: "/sbin/{{ item }}"
+      loop:
+        - auditctl
+        - aureport
+        - ausearch
+        - autrace
+        - auditd
+        - audispd
+        - augenrules
+      register: audit_tools
+      
+    - name: Verify the permissions of audit tools have 0755 octal digits.
+      loop: |
+        {{ audit_tools.results | map(attribute='item')
+        | zip(audit_tools.results | map(attribute='stat.mode'))
+        | list }}
 
+      assert:
+        that: item.1 == '0755'
+      loop_control:
+        label: "{{ item.0 }}"
+    
     - set_fact:
         stig_text: "PASSED"
-
+    
   rescue:
 
-    - name: configure the audit tools to be protected from unauthorized access
+    - name: change the audit tools' permissions to 0755 and create audit tool if it doesn't exist.
       become: true
       file:
-        path: "{{ item }}"
+        path: "/sbin/{{ item.item }}"
         mode: 0755
-        state: touch
-      with_items: "{{ lib_files.stdout_lines }}"
-      register: file_perms
-
+        state: "{{ 'file' if item.stat.exists else 'touch' }}"
+      loop: "{{ audit_tools.results }}"
+      register: file_perms_rule 
+  
     - set_fact:
         stig_text: "PASSED"
-      when: file_perms.changed == true
+      when: file_perms_rule.changed
 
     - debug:
         msg: "{{ stig_id }} {{ stig_text }}"
 
   always:
-
     - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+
+
+
+
+
+
+

@@ -2,7 +2,7 @@
 
 - set_fact:
     stig_id: V-219186
-    stig_text: "Ubuntu 18 doesn't use pwquality."
+    stig_text: "Failed. Ubuntu 18 doesn't use pwquality."
     target_file: /etc/pam.d/common-password
 
 - local_action: lineinfile regexp='^V-219182' path="{{ output_path }}" state=absent

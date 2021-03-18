@@ -1,0 +1,73 @@
+---
+
+- set_fact:
+    stig_id: upgrade Ubuntu 16 kernel 4.4.0 to 4.15.18
+    stig_text: "FAILED. Ubuntu failed to install new kernel."
+    file_src: /home/thuan/projects/Linux_kernel_4.15.18
+    remote_path: /usr/local
+ 
+- local_action: lineinfile regexp='^install-kernel-4.15.18' path="{{ output_path }}" state=absent
+
+- name: Check if kernel 4.15.18 or newer is installed.
+  block:      
+  
+    - name: validating if Ubuntu has kernel 4.15.18 or newer is installed.
+      shell: uname -r | cut -d '-' -f1
+      register: ver_check
+      failed_when: ver_check.stdout is version('4.15.18', '<')
+           
+    - set_fact:
+        stig_text: "PASSED"
+        
+  rescue:
+
+    - name: Download Linux kernel packages from local machine to remote host.
+      become: true
+      copy:
+        src: "{{ file_src }}"
+        dest: "{{ remote_path }}"
+        owner: root
+        group: root
+        mode: 0755
+      register: downloads
+
+    - name: Make Linux kernel packages executable 
+      become: true
+      file:
+        path: "{{ remote_path }}/Linux_kernel_4.15.18/"
+        state: directory
+        mode: 0755
+        recurse: yes
+      register: permissions
+      when: downloads.changed
+
+    - name: Install Linux kernel.
+      become: true
+      shell: dpkg -i *.deb
+      args:
+        chdir: "{{ remote_path }}/Linux_kernel_4.15.18/"
+      register: installation
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: installation.changed
+
+    - name: remove Linux Kernel download folder after installation is done.
+      file:
+        path: "{{ remote_path }}/Linux_kernel_4.15.18/"
+        state: absent
+      when: installation.changed
+
+    - name: reboot server
+      reboot:
+        reboot_timeout: 30
+       
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+
+
+
+

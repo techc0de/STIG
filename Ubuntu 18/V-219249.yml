@@ -1,0 +1,67 @@
+---
+
+- set_fact:
+    stig_id: V-219249
+    stig_text: "FAILED. Ubuntu does not generate audit records for any usage of the fremovexattr system call."
+    target_file: /etc/audit/rules.d/stig.rules
+
+- local_action: lineinfile regexp='^V-219249' path="{{ output_path }}" state=absent
+
+- name: Check for stig.rules config file existence
+  block: 
+    - name: check for the file
+      stat:
+        path: "{{ target_file }}"
+      register: rules_file
+
+    - name: check for audit rules
+      shell: auditctl -l | grep fremovexattr
+      register: audit_check
+      failed_when: audit_check.rc != 0
+
+    - assert:
+        that: audit_check.stdout.find(#) == -1
+        fail_msg: Audit Rules Not Configured
+
+    - fail:
+        msg: "FAILED. {{ target_file }} file does not exist."
+      when: rules_file.stat.exists == False
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+    - name: remove any existing "fremovexattr" rules from audit file      
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^(.*)fremovexattr(.*)$'
+        state: absent
+
+    - name: configure the audit system to generate an audit event for any successful/unsuccessful use of the "fremovexattr" command.
+      lineinfile:
+        path: "{{ target_file }}"
+        line: |
+          -a always,exit -F arch=b64 -S fremovexattr -F auid>=1000 -F auid!=4294967295 -k perm_mod
+          -a always,exit -F arch=b64 -S fremovexattr -F auid=0 -k perm_mod
+        state: present
+        create: no
+        owner: root
+        group: root
+        mode: 0640 
+      register: file_updated
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_updated.failed == false
+
+    - name: reload the rules file
+      shell: augenrules --load
+      ignore_errors: true
+      register: reload_rules
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+

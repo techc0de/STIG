@@ -1,0 +1,54 @@
+---
+
+- set_fact:
+    stig_id: V-219317
+    stig_text: "FAILED. Ubuntu does not implement smart card logins for multifactor authentication for access to accounts."
+    target_file: /etc/pam.d/common-auth
+
+- local_action: lineinfile regexp='^V-219317' path="{{ output_path }}" state=absent
+
+- name: Check for pam_pkcs11 config file existence
+  block: 
+    - name: check for the file
+      stat:
+        path: "{{ target_file }}"
+      register: rules_file
+
+    - name: check for pcks11 module
+      shell: grep pam_pkcs11.so "{{ target_file }}"
+      register: audit_check
+      failed_when: audit_check.rc != 0
+
+    - fail:
+        msg: "FAILED. {{ target_file }} file does not exist."
+      when: not rules_file.stat.exists
+
+  rescue:
+ 
+    - shell: egrep -i '^auth\s+(\[success.*\])\s+pam_unix.so.*' "{{ target_file }}" | grep -o '\[.*\]'
+      register: control
+
+    - name: enable pam_pkcs11 module
+      become: true
+      pamd:
+        path: '/etc/pam.d/'
+        name: common-auth
+        type: auth
+        control: "{{ control.stdout | default('[success=1 default=ignore]') }}"
+        module_path: pam_unix.so
+        new_type: auth
+        new_control: "[success={{ control.stdout_lines | length + 1 }} default=ignore]"
+        new_module_path: pam_pkcs11.so
+        state: before
+      register: config_updated
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: config_updated.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+

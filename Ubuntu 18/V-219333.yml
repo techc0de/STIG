@@ -1,0 +1,35 @@
+---
+
+- set_fact:
+    stig_id: V-219333
+    stig_text: "FAILED. Ubuntu does not set to have UTC or GMT timezone."
+
+- local_action: lineinfile regexp='^V-219333' path="{{ output_path }}" state=absent
+
+- name: The time zone must be configured to use Coordinated Universal Time (UTC) or Greenwich Mean Time (GMT).
+  block: 
+   
+    - name: check for time zone
+      shell: timedatectl status | grep -i "time zone" | awk '{print $3}'
+      register: tz_check
+      failed_when: tz_check.stdout != 'GMT' or tz_check.stdout != 'UTC'
+
+    - set_fact:
+        stig_text: "PASSED."
+
+  rescue:
+ 
+    - name: configure the system time zone to use Coordinated Universal Time (UTC) or Greenwich Mean Time (GMT).
+      shell: timedatectl set-timezone UTC
+      register: tz_updated
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: tz_updated.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+

@@ -1,0 +1,41 @@
+---
+
+- set_fact:
+    stig_id: V-219319
+    stig_text: "FAILED. Ubuntu doesn't accept Personal Identity Verification (PIV) credentials."
+    
+- local_action: lineinfile regexp='^V-219319' path="{{ output_path }}" state=absent
+
+- name: Verify the Ubuntu operating system accepts Personal Identity Verification (PIV) credentials.
+  block: 
+
+    - name: check for opensc-pkcs11 package
+      shell: dpkg -l | egrep '^ii  opensc-pkcs11'
+      register: package_check
+      failed_when: package_check.rc != 0
+    
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: Install opensc-pkcs11 if it isn't installed.    
+      become: true
+      apt:
+        name: opensc-pkcs11
+        state: present
+        force: yes
+      register: install_pkg
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: install_pkg.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+
+
+

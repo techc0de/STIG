@@ -1,0 +1,31 @@
+---
+
+- set_fact:
+    stig_id: V-219344
+
+- local_action: lineinfile regexp='^V-219344' path="{{ output_path }}" state=absent
+
+- set_fact:
+    stig_text: "{{ stig_id }} FAILED. aide package not configured correctly."
+
+- name: verify that Advanced Intrusion Detection Environment (AIDE) performs a verification of the operation of security functions every 30 days
+  block: 
+
+    - stat:
+        path: /etc/cron.daily/aide
+      register: aide_cron_file
+
+    - command: /bin/false
+      when: aide_cron_file.stat.exists == False
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - debug:
+        var: stig_text
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

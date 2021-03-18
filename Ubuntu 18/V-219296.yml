@@ -1,0 +1,67 @@
+---
+
+- set_fact:
+    stig_id: V-219296
+    stig_text: "FAILED. Ubuntu does not generate records for successful/unsuccessful uses of init_module or finit_module syscalls."
+    target_file: /etc/audit/rules.d/stig.rules
+
+- local_action: lineinfile regexp='^V-219296' path="{{ output_path }}" state=absent
+
+- name: Check for stig.rules config file existence
+  block: 
+    - name: check for the file
+      stat:
+        path: "{{ target_file }}"
+      register: rules_file
+
+    - name: check for audit rules
+      shell: auditctl -l | egrep 'init_module|finit_module'
+      register: audit_check
+      failed_when: audit_check.rc != 0
+
+    - assert:
+        that: 
+          - audit_check.stdout.find(#) == -1
+          - audit_check.stdout.find('-a always,exit -F arch=b64 -S init_module -S finit_module -F key=modules') != -1
+        fail_msg: Audit Rules Not Configured
+
+    - set_fact:
+        stig_text: "PASSED"
+
+
+  rescue:
+    - name: remove any existing "init_module" rules from audit file      
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^(.*)init_module(.*)$'
+        state: absent
+        create: yes
+        backup: yes
+
+    - name: add/update the audit rules for 'init_module'.
+      lineinfile:
+        path: "{{ target_file }}"
+        line: |
+          -a always,exit -F arch=b64 -S init_module -S finit_module -F key=modules
+        state: present
+        create: yes
+        owner: root
+        group: root
+        mode: 0640 
+      register: file_updated
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_updated.failed == false
+
+    - name: reload the rules file
+      shell: augenrules --load
+      ignore_errors: true
+      register: reload_rules
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+

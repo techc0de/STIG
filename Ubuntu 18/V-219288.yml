@@ -1,0 +1,60 @@
+---
+
+- set_fact:
+    stig_id: V-219288
+    stig_text: "FAILED. Ubuntu does not generate audit records when successful/unsuccessful use of unlinkat system call."
+    target_file: /etc/audit/rules.d/stig.rules
+
+- local_action: lineinfile regexp='^V-219288' path="{{ output_path }}" state=absent
+
+- name: check for stig.rules file existence
+  block: 
+    - name: check for the file
+      stat:
+        path: "{{ target_file }}"
+      register: rules_file
+
+    - fail:
+        msg: "FAILED. {{ target_file }} file does not exist."
+      when: rules_file.stat.exists == False
+
+    - name: check for audit rules
+      shell: auditctl -l | grep unlinkat
+      register: audit_check
+      failed_when: audit_check.rc != 0
+
+    - assert:
+        that: 
+          - audit_check.stdout.find('-a always,exit -F arch=b64 -S unlinkat -F auid>=1000 -F auid!=-1 -k delete') != -1
+        msg: Audit Rules Not Configured
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+  
+    - name: add/update "unlinkat" rules to stig.rules file.
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^(.*)unlinkat(.*)$'
+        line: -a always,exit -F arch=b64 -S unlinkat -Fauid>=1000 -F auid!=4294967295 -k delete     
+        state: present
+        create: yes
+        owner: root
+        group: root
+        mode: 0640 
+      register: file_updated
+  
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_updated.failed == false
+
+    - name: reload the rules file
+      shell: augenrules --load
+      register: reload_rules
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

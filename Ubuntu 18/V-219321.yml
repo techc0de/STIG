@@ -1,0 +1,56 @@
+---
+
+- set_fact:
+    stig_id: V-219321
+    stig_text: "FAILED. Ubuntu doesn't have a DoD Root CA certificate."
+    file_src: /home/thuan/projects/sec/DoD_CAs.pem
+    remote_path: /usr/local/share/ca-certificates
+
+- local_action: lineinfile regexp='^V-219321' path="{{ output_path }}" state=absent
+
+- name: Check if a DoD Root CA is installed.
+  block:      
+  
+    - name: validating if the cert is exist.
+      shell: grep -rin 'DoD Root CA' /etc/ssl/certs
+      register: check_cert 
+      failed_when: check_cert != 0
+    
+    - set_fact:
+        stig_text: "{{ stig_text }}"
+        
+    - set_fact:
+        stig_text: "PASSED"
+    
+  rescue:
+
+    - name: Download root cert from local drive to remote host.
+      become: true
+      copy:
+        src: "{{ file_src }}"
+        dest: "{{ remote_path }}"
+        owner: root
+        group: root
+        mode: 0755
+      register: downloads
+
+    - name: update ca certificates
+      shell: update-ca-certificates
+      register: update_cert
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: update_cert.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+
+
+
+
+
+
+

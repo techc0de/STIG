@@ -2,7 +2,7 @@
 
 - set_fact:
     stig_id: V-219264
-    stig_text: "FAILED. Ubuntu does not generate audit record when attempts to use sudoedit command."
+    stig_text: "FAILED. Ubuntu does not require authentication upon booting into single-user mode and maintenance."
     target_file: /etc/audit/rules.d/stig.rules
 
 - local_action: lineinfile regexp='^V-219264' path="{{ output_path }}" state=absent
@@ -22,7 +22,7 @@
     - assert:
         that: 
           - audit_check.stdout.find('-a always,exit -F path=/usr/bin/sudoedit -F perm=x -F auid>=1000 -F auid!=-1 -k priv_cmd') != -1
-        msg: Audit Rules Not Configured
+        fail_msg: Audit Rules Not Configured
 
     - fail:
         msg: "FAILED. {{ target_file }} file does not exist."
@@ -44,7 +44,7 @@
         line: |
           -a always,exit -F path=/usr/bin/sudoedit -F perm=x -F auid>=1000 -F auid!=4294967295 -k priv_cmd
         state: present
-        create: yes
+        create: no
         owner: root
         group: root
         mode: 0640 

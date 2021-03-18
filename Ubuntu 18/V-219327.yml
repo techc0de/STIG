@@ -1,0 +1,46 @@
+---
+
+- set_fact:
+    stig_id: V-219327
+
+- local_action: lineinfile regexp='^V-219327' path="{{ output_path }}" state=absent
+
+- name: Verify the Ubuntu operating system expires emergency accounts within 72 hours or less.
+  block: 
+
+    - name: check for usernames with expiry dates
+      become: true
+      shell: >
+        cut -f 1 -d: /etc/passwd | 
+        xargs -n 1 -I {} bash -c "printf {} && chage -l {} | 
+        sed -n 4p | 
+        cut -d: -f2 | 
+        tr -s \s" | 
+        egrep -v .*never$ | 
+        cut -d' ' -f1
+      register: emergency_users
+
+    - set_fact:
+        stig_text: "{{ stig_id }} FAILED. Found emergency user accounts."
+      when: emergency_users.rc == 0
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: set expiry date of 72 hours for any emergency account users.
+      become: true
+      shell: "chage -E $(date -d `+3 days` +%F) {{ item }}"
+      with_items: "{{ emergency_users.results }}"
+      register: update_users
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: update_users.changed == true
+
+    - debug:
+        var: stig_text
+
+  always:
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

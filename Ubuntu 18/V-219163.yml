@@ -1,0 +1,51 @@
+---
+
+- set_fact:
+    stig_id: V-219163
+    stig_text: "FAILED. Ubuntu does not configured such that Pluggable Authentication Module (PAM) prohibits the use of cached authentications after one day."
+    target_file:
+      - /etc/sssd/sssd.conf
+      - /etc/sssd/conf.d/*.conf
+
+- local_action: lineinfile regexp='^V-219163' path="{{ output_path }}" state=absent
+
+- name: Check for config file existence
+  block: 
+    - name: check for the file
+      stat:
+        path: "{{ target_file }}"
+      register: rules_file
+
+    - name: Verify that Pluggable Authentication Module (PAM) prohibits the use of cached authentications after one day.
+      shell: grep offline_credentials_expiration "{{ target_file }}" | awk '{print $3}'
+      register: audit_check
+      failed_when: audit_check.rc != 0
+
+    - fail:
+        msg: "FAILED. {{ target_file }} file does not exist."
+      when: rules_file.stat.exists == False
+
+  rescue:
+ 
+    - name: Configure Pluggable Authentication Module (PAM) to prohibit the use of cached authentications after one day.
+      lineinfile:
+        path: /etc/sssd/sssd.conf
+        owner: root
+        group: root
+        mode: 0600
+        state: present
+        create: yes
+        regexp: '^#*\s*offline_credentials_expiration.*$'
+        line: 'offline_credentials_expiration = 1'
+      register: file_updated
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_updated.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+

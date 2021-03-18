@@ -1,0 +1,54 @@
+---
+
+- set_fact:
+    stig_id: V-219309
+    stig_text: "FAILED. Ubuntu does not use strong authenticators in establishing nonlocal maintenance and diagnostic sessions."
+    target_file: /etc/ssh/sshd_config
+
+- local_action: lineinfile regexp='^V-219309' path="{{ output_path }}" state=absent
+
+- name: check for sshd_config file existence
+  block: 
+    - name: check for the file
+      stat:
+        path: "{{ target_file }}"
+      register: rules_file
+
+    - fail:
+        msg: "FAILED. {{ target_file }} file does not exist."
+      when: rules_file.stat.exists == False
+
+    - name: check for PAM rule
+      shell: grep UsePAM /etc/ssh/sshd_config | grep 'yes'
+      register: audit_check
+      failed_when: audit_check.rc != 0
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+    - name: remove any existing PAM rules from the file.      
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^(.*)UsePAM(.*)$'
+        state: absent
+        create: yes
+        backup: yes
+
+    - name: Configure the Ubuntu operating system to enable PAM rule.
+      lineinfile:
+        path: "{{ target_file }}"
+        line: UsePAM yes      
+        state: present
+        create: yes
+      register: file_updated
+  
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_updated.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

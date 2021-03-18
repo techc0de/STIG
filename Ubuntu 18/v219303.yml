@@ -1,0 +1,60 @@
+---
+
+- set_fact:
+    stig_id: V-219303
+    stig_text: "FAILED. Ubuntu does not initiate a session lock after a 15-minute period of inactivity for all connection types."
+    target_file: /etc/profile.d/autologout.sh
+
+- local_action: lineinfile regexp='^V-219303' path="{{ output_path }}" state=absent
+
+- name: check for stig.rules file existence
+  block: 
+    - name: check for the file
+      stat:
+        path: "{{ target_file }}"
+      register: rules_file
+
+    - fail:
+        msg: "FAILED. {{ target_file }} file does not exist."
+      when: rules_file.stat.exists == False
+
+    - name: check for audit rules
+      shell: egrep '(TMOUT|900)' /etc/profile.d/autologout.sh
+      register: audit_check
+      failed_when: audit_check.rc != 0 or audit_check.stdout_lines.find(#) != -1
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+    - name: remove any existing auto logout rules from the file.      
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^(.*)TMOUT(.*)$'
+        state: absent
+        create: yes
+        backup: yes
+
+    - name: Configure the Ubuntu operating system to initiate a session logout after a 15-minute period of inactivity.
+      lineinfile:
+        path: "{{ target_file }}"
+        line: |
+          TMOUT=900
+          readonly TMOUT
+          export TMOUT       
+        state: present
+        create: yes
+        owner: root
+        group: root
+        mode: 0640 
+      register: file_updated
+  
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_updated.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

@@ -1,0 +1,340 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="topic-status" content="Sent for Review" />
+<meta name="generator" content="Adobe RoboHelp 11" />
+<title>LINUX_README.html</title>
+<link rel="StyleSheet" href="../adventnet1.css" type="text/css" />
+</head>
+
+<body>
+<h1>README</h1>
+<p>Administrators can use Desktop Central to manage computers running Linux 
+ operating system. This document will explain you on the following: </p>
+<ul>
+	<li><a href="#Supported_Linux_OS">Supported Linux OS</a></li>
+	<li><a href="#Installing_Linux_Agents">Installing Desktop Central Agents</a></li>
+	<li><a href="#Installing_Desktop_Central_Agent_using_SSH">Installing 
+	 Desktop Central Agent Remotely</a></li>
+	<li><a href="#Uninstalling_Linux_agents">Uninstalling Desktop Central 
+	 Agents</a></li>
+</ul>
+<h2><a name="Supported_Linux_OS"></a>Supported Linux OS</h2>
+<p style="margin-left: 40px;">Desktop Central currently supports the following 
+ Linux versions:</p>
+<ul style="list-style: disc;">
+	<ul style="list-style: disc;">
+		<li>Ubuntu 10.04 and later versions </li>
+		<li>RedHat Enterprise Linux 6 and later versions </li>
+		<li>CentOS 6 and later versions</li>
+		<li>Fedora &#160;19 and later versions</li>
+		<li>Mandriva 2010 &#160;and later versions</li>
+		<li>Debian 7 and later versions</li>
+	</ul>
+</ul>
+<h2><a name="Installing_Linux_Agents"></a>Installing Desktop Central Agents</h2>
+<p style="margin-left: 40px;">Linux agents can be installed manually in 
+ the computers that need to be managed. &#160;Agents should be downloaded 
+ on the Linux computer manually before initiating the installation process. 
+ Follow the steps mentioned below.</p>
+<ol>
+	<ol>
+		<li>Go to the terminal as a root user. If you do not login as a 
+		 root user, open the terminal and use sudo command to perform each 
+		 operation mentioned below and enter password whenever prompted. 
+		 This provides you the root privilege.</li>
+		<li>Move to the Directory where you have downloaded the Agent, and verify &quot;<b 
+		 style="font-family: Verdana, Arial, helvetica, sans-serif; font-size: 13px; 
+		 line-height: normal; orphans: auto; widows: auto; -webkit-text-stroke-width: 0px;">DesktopCentral_LinuxAgent.bin</b><span style="font-family: Verdana, Arial, helvetica, sans-serif; 
+						font-size: 13px; line-height: normal; 
+						orphans: auto; widows: auto; 
+						-webkit-text-stroke-width: 0px; 
+						display: inline	 ! important ; 
+						float: none; background-color: #ffffff;">&quot;</span> 
+		 and <b 
+		 style="font-family: Verdana, Arial, helvetica, sans-serif; font-size: 13px; 
+		 line-height: normal; orphans: auto; widows: auto; -webkit-text-stroke-width: 0px;">serverinfo.json</b><span style="font-family: Verdana, Arial, helvetica, sans-serif; 
+						font-size: 13px; line-height: normal; 
+						orphans: auto; widows: auto; 
+						-webkit-text-stroke-width: 0px; 
+						display: inline	 ! important ; 
+						float: none; background-color: #ffffff;">&quot;</span> 
+		 are there.</li>
+		 <li>Execute the Command, &quot;<b 
+		 style="font-family: Verdana, Arial, helvetica, sans-serif; font-size: 13px; 
+		 line-height: normal; orphans: auto; widows: auto; -webkit-text-stroke-width: 0px;">chmod 
+		 +x DesktopCentral_LinuxAgent.bin</b><span style="font-family: Verdana, Arial, helvetica, sans-serif; 
+													 font-size: 13px; line-height: normal; 
+													 orphans: auto; widows: auto; 
+													 -webkit-text-stroke-width: 0px; 
+													 display: inline	 ! important ; 
+													 float: none; background-color: #ffffff;">&quot;</span> 
+		 as a root user. This prepares the executable for installation.</li>
+		<li><span style="font-family: Verdana, Arial, helvetica, sans-serif; 
+					 font-size: 13px; line-height: normal; orphans: auto; 
+					 widows: auto; -webkit-text-stroke-width: 0px; display: inline	 ! important ; 
+					 float: none; background-color: #ffffff;">Run the Installer 
+		 using &quot;</span><b style="font-family: Verdana, Arial, helvetica, sans-serif; 
+								 font-size: 13px; line-height: normal; 
+								 orphans: auto; widows: auto; -webkit-text-stroke-width: 0px;">./DesktopCentral_LinuxAgent.bin</b><span 
+		 style="font-family: Verdana, Arial, helvetica, sans-serif; font-size: 13px; 
+		 line-height: normal; orphans: auto; widows: auto; -webkit-text-stroke-width: 0px; 
+		 display: inline	 ! important ; float: none; background-color: #ffffff;">&quot;. 
+		 Agent will be installed by default in &quot;</span><b style="font-family: Verdana, Arial, helvetica, sans-serif; 
+		 font-size: 13px; line-height: normal; orphans: auto; widows: auto; 
+		 -webkit-text-stroke-width: 0px;">/usr/local/desktopcentralagent</b><span 
+		 style="font-family: Verdana, Arial, helvetica, sans-serif; font-size: 13px; 
+		 line-height: normal; orphans: auto; widows: auto; -webkit-text-stroke-width: 0px; 
+		 display: inline	 ! important ; float: none; background-color: #ffffff;">&quot; 
+		 directory.</span></li>
+		<li><span style="font-family: Verdana, Arial, helvetica, sans-serif; 
+					 font-size: 13px; line-height: normal; orphans: auto; 
+					 widows: auto; -webkit-text-stroke-width: 0px; display: inline	 ! important ; 
+					 float: none; background-color: #ffffff;">If you wanted 
+		 to change the installation location of the agent, use this command 
+		 &quot;</span><b style="font-family: Verdana, Arial, helvetica, sans-serif; 
+						 font-size: 13px; line-height: normal; orphans: auto; 
+						 widows: auto; -webkit-text-stroke-width: 0px;">./</b><span 
+		 style="font-family: Verdana, Arial, helvetica, sans-serif; font-size: 10pt; 
+		 line-height: normal; orphans: auto; widows: auto; -webkit-text-stroke-width: 0px;"><b>DesktopCentral_LinuxAgent.bin</b>&#160;</span><b 
+		 style="font-family: Verdana, Arial, helvetica, sans-serif; font-size: 10pt; 
+		 line-height: normal; orphans: auto; widows: auto; -webkit-text-stroke-width: 0px;">-d 
+		 &lt;new_location&gt;</b><span style="font-family: Verdana, Arial, helvetica, sans-serif; 
+										 font-size: 10pt; line-height: normal; 
+										 orphans: auto; widows: auto; -webkit-text-stroke-width: 0px;">&quot;</span> 
+		 . </li>
+	</ol>
+</ol>
+<p style="margin-left: 40px;">You can see that the Desktop Central agent 
+ is successfully installed on the Linux computer. You need to install the 
+ agents manually on the computers, which needs to be managed using Desktop 
+ Central. Once the agent installation is completed, the computer will be 
+ scanned automatically and the following details will be updated to the 
+ Desktop Central server:</p>
+<ol>
+	<ul>
+		<li style="display: inline; list-style: disc;">System Details : 
+		 All details about the comptuer, like Users, Groups and Services. 
+		 This does not include details on the network shares mapped to 
+		 the computer.</li><br>
+		<li style="display: inline; list-style: disc;">Hardware &#160;Details 
+		 : All hardware details of the computer like, BIOS, Disk Drives, 
+		 Physical Memory, Processors, Network Adapters etc. This does not 
+		 include details on Printers and Ports.</li><br>
+		<li style="display: inline; list-style: disc;">Software Details 
+		 : All details on the software that is installed on the managed 
+		 computer, with the version of the application and installation 
+		 date etc.</li><br>
+	</ul>
+</ol>
+<h2><a name="Installing_Desktop_Central_Agent_using_SSH"></a>Installing 
+ Desktop Central Agent Remotely</h2>
+<p style="margin-left: 40px;">When you wanted to install Desktop Central 
+ agent remotely on &#160;Linux computers, &#160;you can install &#160;them 
+ using SSH. Follow the steps mentioned below to install Desktop Central 
+ agent using SSH:</p>
+<ol style="list-style: decimal;">
+	<ol style="list-style: decimal;">
+		<li>Copy the downloaded Desktop Central agent to the remote computer 
+		 on which the agent needs to be installed</li>
+		<ol style="list-style: decimal;">
+			<li>Go to terminal as root user</li>
+			<li>Navigate to the location where the agent is being copied/downloaded</li>
+			<li>Type &quot;<span style="font-weight: bold;">scp DCLinuxAgent.zip 
+			 username@hostname:&lt;Path_To_Storage_Directory_If_Needed&gt;&quot; 
+			 </span><span>to copy the agent to the target computer, enter 
+			 password if prompted</span><br />
+			where <span style="font-weight: bold;">username </span><span>refers 
+			 to the root user name of the target computer</span><br />
+			<span style="font-weight: bold;">hostname</span> refers to 
+			 the local host name of the target computer<br />
+			If no path is specified, then the agent will be copied to <span 
+			 style="font-weight: bold;">&quot;/home/username&quot; </span><span>in 
+			 the target computer</span></li>
+		</ol>
+		<li>Install the agent by following the steps mentioned below:</li>
+		<ol style="list-style: decimal;">
+			<li>Go to the terminal and Type <span style="font-weight: bold;">&quot;ssh 
+			 rootusername@hostname&quot; </span><span>&#160;to login to 
+			 the target computer</span></li>
+			<li><span>Login as a </span>root user. If you do not login 
+			 as rootuser, open the terminal and use sudo command to perform 
+			 each operation mentioned below and enter password whenever 
+			 prompted. This provides you the root privilege.</li>
+			<li>Navigate to the location, where the agent is downloaded/copied, 
+			 if the downloaded agent is a remote office agent, then extract 
+			 <span style="font-family: Verdana, Arial, Helvetica, sans-serif; 
+					 font-size: 13px; line-height: normal; orphans: auto; 
+					 widows: auto; -webkit-text-stroke-width: 0px; display: inline	 ! important ; 
+					 float: none; background-color: #ffffff; font-weight: bold;">&lt;Remote_Office_Name&gt;.zip</span><span 
+			 style="font-family: Verdana, Arial, Helvetica, sans-serif; 
+			 font-size: 13px; line-height: normal; orphans: auto; widows: auto; 
+			 -webkit-text-stroke-width: 0px; background-color: #ffffff;"> 
+			 </span>&#160;and navigate to Unzip the DCLinuxAgent.zip by 
+			 using the command &quot;<b>unzip -e DCLinuxAgent.zip</b>&quot;. 
+			 </li>
+			<li>Verify if, &#160;<span style="font-weight: bold;">&quot;</span><b 
+			 style="font-family: Verdana, Arial, helvetica, sans-serif; 
+			 font-size: 13px; line-height: normal; orphans: auto; widows: auto; 
+			 -webkit-text-stroke-width: 0px;">DesktopCentral_LinuxAgent.bin&quot; 
+			 &amp; &quot;serverinfo.json<span style="font-weight: bold;">&quot;</span><span 
+			 style="font-weight: normal;"> are located in the same path</span></b></li>
+			<li>Execute the Command, &quot;<b style="font-family: Verdana, Arial, helvetica, sans-serif; 
+												 font-size: 13px; line-height: normal; 
+												 orphans: auto; widows: auto; 
+												 -webkit-text-stroke-width: 0px;">chmod 
+			 +x DesktopCentral_LinuxAgent.bin</b><span style="font-family: Verdana, Arial, helvetica, sans-serif; 
+														 font-size: 13px; 
+														 line-height: normal; 
+														 orphans: auto; 
+														 widows: auto; 
+														 -webkit-text-stroke-width: 0px; 
+														 display: inline	 ! important ; 
+														 float: none; background-color: #ffffff;">&quot;</span> 
+			 as a root user. This prepares the executable for installation.</li>
+			<li><span style="font-family: Verdana, Arial, helvetica, sans-serif; 
+						 font-size: 13px; line-height: normal; orphans: auto; 
+						 widows: auto; -webkit-text-stroke-width: 0px; 
+						 display: inline	 ! important ; float: none; 
+						 background-color: #ffffff;">Run the Installer 
+			 using &quot;</span><b style="font-family: Verdana, Arial, helvetica, sans-serif; 
+									 font-size: 13px; line-height: normal; 
+									 orphans: auto; widows: auto; -webkit-text-stroke-width: 0px;">./DesktopCentral_LinuxAgent.bin</b><span 
+			 style="font-family: Verdana, Arial, helvetica, sans-serif; 
+			 font-size: 13px; line-height: normal; orphans: auto; widows: auto; 
+			 -webkit-text-stroke-width: 0px; display: inline	 ! important ; 
+			 float: none; background-color: #ffffff;">&quot;. &#160;Ensure 
+			 that the Property File </span><span style="font-family: Verdana, Arial, helvetica, sans-serif; 
+												 font-size: 13px; line-height: normal; 
+												 orphans: auto; widows: auto; 
+												 -webkit-text-stroke-width: 0px; 
+												 display: inline	 ! important ; 
+												 float: none; background-color: #ffffff; 
+												 font-weight: bold;">&quot;severinfo.json&quot;</span><span 
+			 style="font-family: Verdana, Arial, helvetica, sans-serif; 
+			 font-size: 13px; line-height: normal; orphans: auto; widows: auto; 
+			 -webkit-text-stroke-width: 0px; display: inline	 ! important ; 
+			 float: none; background-color: #ffffff;"> exists in the Same 
+			 Directory as </span><span style="font-family: Verdana, Arial, helvetica, sans-serif; 
+										 font-size: 13px; line-height: normal; 
+										 orphans: auto; widows: auto; -webkit-text-stroke-width: 0px; 
+										 display: inline	 ! important ; 
+										 float: none; background-color: #ffffff; 
+										 font-weight: bold;">&quot;DesktopCentral_LinuxAgent.bin</span><span 
+			 style="font-family: Verdana, Arial, helvetica, sans-serif; 
+			 font-size: 13px; line-height: normal; orphans: auto; widows: auto; 
+			 -webkit-text-stroke-width: 0px; display: inline	 ! important ; 
+			 float: none; background-color: #ffffff;">&quot;. &#160;Agent 
+			 will be installed by default in &quot;</span><b style="font-family: Verdana, Arial, helvetica, sans-serif; 
+															 font-size: 13px; 
+															 line-height: normal; 
+															 orphans: auto; 
+															 widows: auto; 
+															 -webkit-text-stroke-width: 0px;">/usr/local/desktopcentralagent</b><span 
+			 style="font-family: Verdana, Arial, helvetica, sans-serif; 
+			 font-size: 13px; line-height: normal; orphans: auto; widows: auto; 
+			 -webkit-text-stroke-width: 0px; display: inline	 ! important ; 
+			 float: none; background-color: #ffffff;">&quot; directory.</span></li>
+			<li><span style="font-family: Verdana, Arial, helvetica, sans-serif; 
+						 font-size: 13px; line-height: normal; orphans: auto; 
+						 widows: auto; -webkit-text-stroke-width: 0px; 
+						 display: inline	 ! important ; float: none; 
+						 background-color: #ffffff;">If you wanted to change 
+			 the installation location of the agent, use this command &quot;</span><b 
+			 style="font-family: Verdana, Arial, helvetica, sans-serif; 
+			 font-size: 13px; line-height: normal; orphans: auto; widows: auto; 
+			 -webkit-text-stroke-width: 0px;">./</b><span style="font-family: Verdana, Arial, helvetica, sans-serif; 
+															 font-size: 10pt; 
+															 line-height: normal; 
+															 orphans: auto; 
+															 widows: auto; 
+															 -webkit-text-stroke-width: 0px;"><b>DesktopCentral_LinuxAgent.bin</b>&#160;</span><b 
+			 style="font-family: Verdana, Arial, helvetica, sans-serif; 
+			 font-size: 10pt; line-height: normal; orphans: auto; widows: auto; 
+			 -webkit-text-stroke-width: 0px;">-d &lt;new_location&gt;</b><span 
+			 style="font-family: Verdana, Arial, helvetica, sans-serif; 
+			 font-size: 10pt; line-height: normal; orphans: auto; widows: auto; 
+			 -webkit-text-stroke-width: 0px;">&quot;</span> . </li>
+		</ol>
+	</ol>
+</ol>
+<p style="margin-left: 40px;">You have successfully installed the Desktop 
+ Central agent on a remote computer using SSH.</p>
+<h2><a name="Uninstalling_Linux_agents"></a>Uninstalling Desktop Central 
+ Agents</h2>
+<p style="margin-left: 40px;">If you do not want to manage a computer, 
+ you can follow the steps mentioned below to uninstall the Desktop Central 
+ agent. Once Desktop Central agent is uninstalled, all the details related 
+ to the computer will be removed from Desktop Central server. If you wanted 
+ to manage this computer again, then you will have to re-install Desktop 
+ Central agent in it. However the previous details related to the computer 
+ will not be available. To uninstall the agents from the computers, follow 
+ the steps mentioned below:</p>
+<ol>
+	<ol>
+		<li style="list-style: none; display: inline;"><ol style="list-style: decimal;">
+			<li>Go to the terminal as a root user. If you do not login 
+			 as root user, open the terminal and use sudo command to perform 
+			 each operation mentioned below and enter password whenever 
+			 prompted. This provides you the root privilege.</li>
+			<li>Navigate to the location, where the agent is installed, 
+			 <span style="font-family: Verdana, Arial, helvetica, sans-serif; 
+					 font-size: 13px; line-height: normal; orphans: auto; 
+					 widows: auto; -webkit-text-stroke-width: 0px; display: inline	 ! important ; 
+					 float: none; background-color: #ffffff;">(</span><span 
+			 style="display: inline	 ! important ; float: none; font-family: Verdana, Arial, helvetica, sans-serif; 
+			 font-size: 13px; line-height: normal; orphans: auto; widows: auto; 
+			 -webkit-text-stroke-width: 0px; background-color: #ffffff; 
+			 font-weight: bold;">d</span><b style="font-family: Verdana, Arial, helvetica, sans-serif; 
+											 font-size: 13px; line-height: normal; 
+											 orphans: auto; widows: auto; 
+											 -webkit-text-stroke-width: 0px; 
+											 background-color: #ffffff;">efault 
+			 Location : /usr/local/desktopcentralagent</b><span style="font-family: Verdana, Arial, helvetica, sans-serif; 
+			 font-size: 13px; line-height: normal; orphans: auto; widows: auto; 
+			 -webkit-text-stroke-width: 0px; display: inline	 ! important ; 
+			 float: none; background-color: #ffffff;">)</span> execute 
+			 this command to <span style="font-family: Verdana, Arial, helvetica, sans-serif; 
+									 font-size: 13px; line-height: normal; 
+									 orphans: auto; widows: auto; -webkit-text-stroke-width: 0px; 
+									 display: inline	 ! important ; 
+									 float: none; background-color: #ffffff;">&quot;</span><b 
+			 style="font-family: Verdana, Arial, helvetica, sans-serif; 
+			 font-size: 13px; line-height: normal; orphans: auto; widows: auto; 
+			 -webkit-text-stroke-width: 0px; background-color: #ffffff;">chmod 
+			 +x RemoveDCAgent.sh</b><span style="font-family: Verdana, Arial, helvetica, sans-serif; 
+											 font-size: 13px; line-height: normal; 
+											 orphans: auto; widows: auto; 
+											 -webkit-text-stroke-width: 0px; 
+											 display: inline	 ! important ; 
+											 float: none; background-color: #ffffff;">&quot;</span> 
+			 to initiate the uninstaller. You need to have root privilege 
+			 to uninstall the agent.</li>
+			<li><span style="font-family: Verdana, Arial, helvetica, sans-serif; 
+						 font-size: 13px; line-height: normal; orphans: auto; 
+						 widows: auto; -webkit-text-stroke-width: 0px; 
+						 display: inline	 ! important ; float: none; 
+						 background-color: #ffffff;">Execute this command 
+			 &quot;</span><span><b style="font-family: Verdana, Arial, helvetica, sans-serif; 
+									 font-size: 13px; line-height: normal; 
+									 orphans: auto; widows: auto; -webkit-text-stroke-width: 0px; 
+									 background-color: #ffffff;">./RemoveDCAgent.sh</b></span><span 
+			 style="font-family: Verdana, Arial, helvetica, sans-serif; 
+			 font-size: 13px; line-height: normal; orphans: auto; widows: auto; 
+			 -webkit-text-stroke-width: 0px; display: inline	 ! important ; 
+			 float: none; background-color: #ffffff;">&quot;</span><span 
+			 style="font-family: Verdana, Arial, helvetica, sans-serif; 
+			 font-size: 13px; line-height: normal; orphans: auto; widows: auto; 
+			 -webkit-text-stroke-width: 0px; background-color: #ffffff;"> 
+			 </span>&#160;to uninstall the agent.</li>
+		</ol></li>
+	</ol>
+	<p>You can see that the Desktop Central agent has been uninstalled 
+	 successfully from the computer. </p>
+</ol>
+<p style="margin-left: 40px;">&#160;</p>
+<p>&#160;</p>
+</body>
+</html>

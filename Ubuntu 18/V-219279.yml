@@ -1,30 +1,26 @@
 ---
 
 - set_fact:
-    stig_id: V-219288
-    stig_text: "FAILED. Ubuntu does not generate audit records when successful/unsuccessful use of unlinkat system call."
+    stig_id: V-219279
+    stig_text: "FAILED. Ubuntu does not generate audit records for successful/unsuccessful uses of the finit_module syscall."
     target_file: /etc/audit/rules.d/stig.rules
 
-- local_action: lineinfile regexp='^V-219288' path="{{ output_path }}" state=absent
+- local_action: lineinfile regexp='^V-219279' path="{{ output_path }}" state=absent
 
-- name: check for stig.rules file existence
+- name: Check for stig.rules config file existence
   block: 
     - name: check for the file
       stat:
         path: "{{ target_file }}"
       register: rules_file
 
-    - fail:
-        msg: "FAILED. {{ target_file }} file does not exist."
-      when: rules_file.stat.exists == False
-
     - name: check for 64-bit audit rules
-      shell: auditctl -l | grep -i 'arch=b64 -S unlinkat'
+      shell: auditctl -l | grep -i 'arch=b64 -S finit_module'
       register: audit_check
       failed_when: audit_check_64bit.rc != 0
 
     - name: check for 32-bit audit rules
-      shell: auditctl -l | grep -i 'arch=b32 -S unlinkat'
+      shell: auditctl -l | grep -i 'arch=b32 -S finit_module'
       register: audit_check
       failed_when: audit_check_32bit.rc != 0
 
@@ -32,12 +28,11 @@
         stig_text: "PASSED"
 
   rescue:
-  
-    - name: add/update "unlinkat auid>=1000" 64-bit rules to stig.rules file.
+    - name: add/update "finit_module auid>=1000" 64-bit rules to stig.rules file.
       lineinfile:
         path: "{{ target_file }}"
-        regexp: '^(.*)arch=b64.*unlinkat.*auid>=1000(.*)$'
-        line: -a always,exit -F arch=b64 -S unlinkat -Fauid>=1000 -F auid!=4294967295 -k delete    
+        regexp: '^(.*)arch=b64.*finit_module.*auid>=1000(.*)$'
+        line: -a always,exit -F arch=b64 -S finit_module -F auid>=1000 -F auid!=4294967295 -k module_chng    
         state: present
         create: yes
         owner: root
@@ -45,11 +40,11 @@
         mode: 0640 
       register: file_updated_auid1000
 
-    - name: add/update "unlinkat auid>=1000" 32-bit rules to stig.rules file.
+    - name: add/update "finit_module auid>=1000" 32-bit rules to stig.rules file.
       lineinfile:
         path: "{{ target_file }}"
-        regexp: '^(.*)arch=b32.*unlinkat.*auid>=1000(.*)$'
-        line: -a always,exit -F arch=b32 -S unlinkat -F auid>=1000 -F auid!=4294967295 -k delete   
+        regexp: '^(.*)arch=b32.*finit_module.*auid>=1000(.*)$'
+        line: -a always,exit -F arch=b32 -S finit_module -F auid>=1000 -F auid!=4294967295 -k module_chng    
         state: present
         create: yes
         owner: root
@@ -61,7 +56,8 @@
         stig_text: "PASSED"
       when: 
         - file_updated_auid1000.failed == false
-        - file_updated_auid1000_32bit.failed == false
+        - file_updated_auid1000_32bit.failed == false      
+
     - name: reload the rules file
       shell: augenrules --load
       register: reload_rules
@@ -71,3 +67,4 @@
 
   always:
     - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+

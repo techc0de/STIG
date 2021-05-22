@@ -1,0 +1,68 @@
+---
+
+- set_fact:
+    stig_id: V-219336
+
+- local_action: lineinfile regexp='^V-219336' path="{{ output_path }}" state=absent
+
+- set_fact:
+    target_file: /etc/aide/aide.conf
+    stig_text: "{{ stig_id }} FAILED. aide package not configured to protect the integrity of audit tools."
+
+- stat:
+    path: "{{ target_file }}"
+  register: aide_config_file
+
+- name: verfiy that AIDE is properly configured to protect the integrity of audit tools.
+  block:
+
+    - command: /bin/false
+      when: aide_config_file.stat.exists == False
+
+    - shell: egrep '(\/usr\/sbin\/(audit|au))' {{ target_file }}
+      register: aide_check
+      failed_when: aide_check.rc == 2 or aide_check.rc == 3
+
+    - command: /bin/false
+      when: aide_check.rc == 1 or aide_check.stdout_lines | length < 7
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: remove existing rules
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^\/usr\/sbin\/(audit|au)'
+        state: absent
+
+    - name: update /etc/aide/aide.conf in order to protect the integrity of the audit tools.
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        owner: root
+        group: root
+        state: present
+        line: | 
+          # Audit Tools
+          /usr/sbin/auditctl p+i+n+u+g+s+b+acl+xattrs+sha512
+          /usr/sbin/auditd p+i+n+u+g+s+b+acl+xattrs+sha512
+          /usr/sbin/ausearch p+i+n+u+g+s+b+acl+xattrs+sha512
+          /usr/sbin/aureport p+i+n+u+g+s+b+acl+xattrs+sha512
+          /usr/sbin/autrace p+i+n+u+g+s+b+acl+xattrs+sha512
+          /usr/sbin/audispd p+i+n+u+g+s+b+acl+xattrs+sha512
+          /usr/sbin/augenrules p+i+n+u+g+s+b+acl+xattrs+sha512
+      register: config_updated
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: config_updated.failed == false
+
+    - debug:
+        var: stig_text
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

@@ -1,0 +1,61 @@
+---
+
+- set_fact:
+    stig_id: V-219166
+    stig_text: "FAILED. Ubuntu doesn't automatically lock user account after three invalid logon attempts."
+    target_file: /etc/pam.d/common-auth
+
+- local_action: lineinfile regexp='^V-219166' path="{{ output_path }}" state=absent
+
+- name: Check for stig.rules config file existence
+  block: 
+
+    - name: check for audit rules
+      shell: grep pam_tally2 /etc/pam.d/common-auth
+      register: audit_check
+      failed_when: audit_check.rc != 0
+
+    - assert:
+        that: 
+          - audit_check.stdout.find('#') == -1
+          - audit_check.stdout.find('auth required pam_tally2.so onerr=fail deny=3') != -1
+        fail_msg: Audit Rules Not Configured
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+    - name: remove any existing "pam_tally" rules from audit file      
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^(.*)pam_tally2.so(.*)$'
+        state: absent
+        create: yes
+        backup: yes
+
+    - name: Configure the Ubuntu operating system to lock an account after three unsuccessful login attempts.
+      lineinfile:
+        path: "{{ target_file }}"
+        line: |
+          auth required pam_tally2.so onerr=fail deny=3
+        state: present
+        create: yes
+        owner: root
+        group: root
+        mode: 0640 
+      register: file_updated
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_updated.failed == false
+
+    - name: reload the rules file
+      shell: augenrules --load
+      register: reload_rules
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+

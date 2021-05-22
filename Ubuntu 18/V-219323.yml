@@ -14,7 +14,7 @@
       register: package_check
       failed_when: package_check.rc != 0
 
-    - name: Check if apparmor is active.
+    - name: Check if apparmor is active
       shell: systemctl is-active apparmor.service
       register: service_status
       failed_when: service_status.stdout != 'active' 

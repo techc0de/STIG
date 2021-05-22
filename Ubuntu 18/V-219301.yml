@@ -15,7 +15,7 @@
       register: rules_file
 
     - name: Verify that the Ubuntu operating system limits the number of concurrent sessions to ten for all accounts and/or account types.
-      shell:  grep maxlogins "{{ target_file }}" | grep '^* hard maxlogins 10'
+      shell:  grep '^* hard maxlogins 10' {{ target_file }} 
       register: audit_check
       failed_when: audit_check.rc != 0
 
@@ -23,17 +23,17 @@
         msg: "FAILED. {{ target_file }} file does not exist."
       when: rules_file.stat.exists == False
 
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
   rescue:
  
     - name: Configure the Ubuntu operating system to limit the number of concurrent sessions to ten for all accounts and/or account types.
       lineinfile:
         path: "{{ target_file }}"
-        owner: root
-        group: root
-        mode: 0600
         state: present
-        create: yes
-        regexp: '^#*\s*maxlogins.*$'
+        insertbefore: BOF
+        regexp: '^(.*)maxlogins(.*)$'
         line: '* hard maxlogins 10'
       register: file_updated
 

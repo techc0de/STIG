@@ -14,55 +14,76 @@
         path: "{{ target_file }}"
       register: rules_file
 
-    - name: check for audit rules
-      shell: auditctl -l | grep open_by_handle_at
+    - name: check for 64-bit audit rules
+      shell: auditctl -l | grep -i 'arch=b64 -S open_by_handle_at'
       register: audit_check
-      failed_when: audit_check.rc != 0
+      failed_when: audit_check_64bit.rc != 0
 
-    - assert:
-        that: 
-          - audit_check.stdout.find(#) == -1
-          - audit_check.stdout.find('-a always,exit -F arch=b64 -S open_by_handle_at -F exit=-EPERM -F auid>=1000 -F auid!=4294967295 -k perm_access') != -1
-          - audit_check.stdout.find('-a always,exit -F arch=b64 -S open_by_handle_at -F exit=-EACCES -F auid>=1000 -F auid!=4294967295 -k perm_access') != -1
-       
-    - fail:
-        msg: "FAILED. {{ target_file }} file does not exist."
-      when: rules_file.stat.exists == False
+    - name: check for 32-bit audit rules
+      shell: auditctl -l | grep -i 'arch=b32 -S open_by_handle_at'
+      register: audit_check
+      failed_when: audit_check_32bit.rc != 0
 
     - set_fact:
-          stig_text: "PASSED"
+        stig_text: "PASSED"
 
   rescue:
 
-    - name: add/update the audit rules for 'open_by_handle_at exit=-EPERM'.
+    - name: add/update "open_by_handle_at exit=-EPERM" 64-bit rules to stig.rules file.
       lineinfile:
         path: "{{ target_file }}"
-        regexp: '^(.*)open_by_handle_at.*EPERM(.*)$'
-        line: -a always,exit -F arch=b64 -S open_by_handle_at -F exit=-EPERM -F auid>=1000 -F auid!=4294967295 -k perm_access
+        regexp: '^(.*)arch=b64.*open_by_handle_at.*exit=-EPERM(.*)$'
+        line: -a always,exit -F arch=b64 -S open_by_handle_at -F exit=-EPERM -F auid>=1000 -F auid!=-1 -k perm_access  
         state: present
         create: yes
         owner: root
         group: root
         mode: 0640 
-      register: file_updated_EPERM
+      register: file_updated_eperm
 
-    - name: add/update the audit rules for 'open_by_handle_at exit=-EACCES'.
+    - name: add/update "open_by_handle_at exit=-EACCES" 64-bit rules to stig.rules file.
       lineinfile:
         path: "{{ target_file }}"
-        regexp: '^(.*)open_by_handle_at.*EACCES(.*)$'
-        line: -a always,exit -F arch=b64 -S open_by_handle_at -F exit=-EACCES -F auid>=1000 -F auid!=4294967295 -k perm_access
+        regexp: '^(.*)arch=b64.*open_by_handle_at.*exit=-EACCES(.*)$'
+        line: -a always,exit -F arch=b64 -S open_by_handle_at -F exit=-EACCES -F auid>=1000 -F auid!=-1 -k perm_access      
         state: present
         create: yes
         owner: root
         group: root
         mode: 0640 
-      register: file_updated_EACCES
+      register: file_updated_eacces
+
+    - name: add/update "open_by_handle_at exit=-EPERM" 32-bit rules to stig.rules file.
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^(.*)arch=b32.*open_by_handle_at.*exit=-EPERM(.*)$'
+        line: -a always,exit -F arch=b32 -S open_by_handle_at -F exit=-EPERM -F auid>=1000 -F auid!=-1 -k perm_access 
+        state: present
+        create: yes
+        owner: root
+        group: root
+        mode: 0640 
+      register: file_updated_eperm_32bit
+
+    - name: add/update "open_by_handle_at exit=-EACCES" 32-bit rules to stig.rules file.
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^(.*)arch=b32.*open_by_handle_at.*exit=-EACCES(.*)$'
+        line: -a always,exit -F arch=b32 -S open_by_handle_at -F exit=-EACCES -F auid>=1000 -F auid!=-1 -k perm_access    
+        state: present
+        create: yes
+        owner: root
+        group: root
+        mode: 0640 
+      register: file_updated_eacces_32bit      
 
     - set_fact:
         stig_text: "PASSED"
       when: 
-        - file_updated_EPERM.failed == false
-        - file_updated_EACCES.failed == false
+        - file_updated_eperm.failed == false
+        - file_updated_eacces.failed == false
+        - file_updated_eperm_32bit.failed == false
+        - file_updated_eacces_32bit.failed == false  
 
     - name: reload the rules file
       shell: augenrules --load

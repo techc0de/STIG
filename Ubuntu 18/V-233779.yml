@@ -1,0 +1,52 @@
+---
+
+- set_fact:
+    stig_id: V-233779
+    stig_text: "FAILED. Ubuntu failed to disable the remote X connections."
+    target_file: /etc/ssh/sshd_config
+
+- local_action: lineinfile regexp='^V-233779' path="{{ output_path }}" state=absent
+
+- name: Verify that X11Forwarding is disabled. 
+  block: 
+
+    - name: Check the SSH X11UseLocalhost setting. 
+      shell: "grep -i '^x11forwarding' {{ target_file }} | grep 'yes'"
+      register: audit_check
+      failed_when: audit_check.rc == 0
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: Disabling X11Forwarding
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^(.*)X11Forwarding(.*)$'
+        line: X11Forwarding no
+        state: present
+        create: yes
+        owner: root
+        group: root
+        mode: 0644
+      register: update_rule
+
+    - name: restart ssh service
+      service:
+        name: sshd
+        state: restarted  
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: update_rule.failed == false 
+  
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+
+
+

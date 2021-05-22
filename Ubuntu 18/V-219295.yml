@@ -2,7 +2,7 @@
 
 - set_fact:
     stig_id: V-219294
-    stig_text: "FAILED. Ubuntu does not generate audit records for successful/unsuccessful uses of the ftruncate system call."
+    stig_text: "FAILED. Ubuntu does not generate audit records for successful/unsuccessful uses of the creat system call."
     target_file: /etc/audit/rules.d/stig.rules
 
 - local_action: lineinfile regexp='^V-219293' path="{{ output_path }}" state=absent
@@ -15,12 +15,12 @@
       register: rules_file
 
     - name: check for 64-bit audit rules
-      shell: auditctl -l | grep -i 'arch=b64 -S ftruncate'
+      shell: auditctl -l | grep -i 'arch=b64 -S creat'
       register: audit_check
       failed_when: audit_check_64bit.rc != 0
 
     - name: check for 32-bit audit rules
-      shell: auditctl -l | grep -i 'arch=b32 -S ftruncate'
+      shell: auditctl -l | grep -i 'arch=b32 -S creat'
       register: audit_check
       failed_when: audit_check_32bit.rc != 0
 
@@ -30,11 +30,11 @@
 
   rescue:
   
-    - name: add/update "ftruncate EPERM" 64-bit rules to stig.rules file.
+    - name: add/update "creat EPERM" 64-bit rules to stig.rules file.
       lineinfile:
         path: "{{ target_file }}"
-        regexp: '^(.*)arch=b64.*ftruncate.*-EPERM(.*)$'
-        line: -a always,exit -F arch=b64 -S ftruncate -F exit=-EPERM -F auid>=1000 -F auid!=4294967295 -k perm_access  
+        regexp: '^(.*)arch=b64.*creat.*-EPERM(.*)$'
+        line: -a always,exit -F arch=b64 -S creat -F exit=-EPERM -F auid>=1000 -F auid!=4294967295 -k perm_access  
         state: present
         create: yes
         owner: root
@@ -43,11 +43,11 @@
       register: file_updated_eperm
 
 
-    - name: add/update "ftruncate EACCES" 64-bit rules to stig.rules file.
+    - name: add/update "creat EACCES" 64-bit rules to stig.rules file.
       lineinfile:
         path: "{{ target_file }}"
-        regexp: '^(.*)arch=b64.*ftruncate.*EACCES(.*)$'
-        line: -a always,exit -F arch=b64 -S ftruncate -F exit=-EACCES -F auid>=1000 -F auid!=4294967295 -k perm_access     
+        regexp: '^(.*)arch=b64.*creat.*EACCES(.*)$'
+        line: -a always,exit -F arch=b64 -S creat -F exit=-EACCES -F auid>=1000 -F auid!=4294967295 -k perm_access    
         state: present
         create: yes
         owner: root
@@ -55,11 +55,11 @@
         mode: 0640 
       register: file_updated_eaccess
 
-    - name: add/update "ftruncate EPERM" 32-bit rules to stig.rules file.
+    - name: add/update "creat EPERM" 32-bit rules to stig.rules file.
       lineinfile:
         path: "{{ target_file }}"
-        regexp: '^(.*)arch=b32.*ftruncate.*EPERM(.*)$'
-        line: -a always,exit -F arch=b32 -S ftruncate -F exit=-EPERM -F auid>=1000 -F auid!=4294967295 -k perm_access    
+        regexp: '^(.*)arch=b32.*creat.*EPERM(.*)$'
+        line: -a always,exit -F arch=b32 -S creat -F exit=-EPERM -F auid>=1000 -F auid!=4294967295 -k perm_access    
         state: present
         create: yes
         owner: root
@@ -67,11 +67,11 @@
         mode: 0640 
       register: file_updated_eperm_32_bit
 
-    - name: add/update "truncat EACCES" 32-bit rules to stig.rules file.
+    - name: add/update "creat EACCES" 32-bit rules to stig.rules file.
       lineinfile:
         path: "{{ target_file }}"
-        regexp: '^(.*)arch=b32.*ftruncate.*EACCES(.*)$'
-        line: -a always,exit -F arch=b32 -S ftruncate -F exit=-EACCES -F auid>=1000 -F auid!=4294967295 -k perm_access       
+        regexp: '^(.*)arch=b32.*creat.*EACCES(.*)$'
+        line: -a always,exit -F arch=b32 -S creat -F exit=-EACCES -F auid>=1000 -F auid!=4294967295 -k perm_access      
         state: present
         create: yes
         owner: root

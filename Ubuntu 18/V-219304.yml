@@ -9,9 +9,9 @@
 - name: Verify the Ubuntu operating system has the 'vlock' package installed.
   block: 
 
-    - shell: dpkg -l | grep vlock
+    - shell: dpkg -l | grep -i 'ii  vlock'
       register: pkg_check
-      failed_when: pkg_check.stdout.find('ii  vlock') == -1
+      failed_when: pkg_check.rc != 0
 
     - set_fact:
         stig_text: "PASSED"

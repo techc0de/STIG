@@ -34,7 +34,7 @@
         state: present
         create: yes
         regexp: '^#*\s*cert_policy.*$'
-        line: 'cert_policy = ca,signature,ocsp_on'
+        line: 'cert_policy = ca,signature,ocsp_on;'
       register: file_updated
 
     - set_fact:

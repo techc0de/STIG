@@ -31,7 +31,7 @@
     - name: configure the audit system to generate an audit event for any successful/unsuccessful use of the "chcon" command.
       lineinfile:
         path: "/etc/audit/rules.d/stig.rules"
-        regexp: '^(.*)chcon(.*)$'
+        regexp: '^(.*)/usr/bin/chcon(.*)$'
         line: -a always,exit -F path=/usr/bin/chcon -F perm=x -F auid>=1000 -F auid!=4294967295 -k perm_chng
         state: present
         create: yes
@@ -44,7 +44,6 @@
     - name: reload the rules file
       become: true
       shell: augenrules --load
-      ignore_errors: true
       register: reload_rules
 
     - debug:

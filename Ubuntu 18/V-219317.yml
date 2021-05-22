@@ -21,7 +21,7 @@
 
     - fail:
         msg: "FAILED. {{ target_file }} file does not exist."
-      when: not rules_file.stat.exists
+      when: rules_file.stat.exists == False
 
   rescue:
  

@@ -1,11 +1,11 @@
 ---
 
 - set_fact:
-    stig_id: V-219283
-    stig_text: "FAILED. Ubuntu does not generate audit records when successful/unsuccessful attempts to use lsetxattr system call."
+    stig_id: V-219278
+    stig_text: "FAILED. Ubuntu does not generate records for successful/unsuccessful uses of the init_module syscall."
     target_file: /etc/audit/rules.d/stig.rules
 
-- local_action: lineinfile regexp='^V-219283' path="{{ output_path }}" state=absent
+- local_action: lineinfile regexp='^V-219278' path="{{ output_path }}" state=absent
 
 - name: Check for stig.rules config file existence
   block: 
@@ -15,25 +15,19 @@
       register: rules_file
 
     - name: check for 64-bit audit rules
-      shell: auditctl -l | grep -i 'arch=b64 -S lsetxattr'
+      shell: auditctl -l | grep -w init_module
       register: audit_check
-      failed_when: audit_check_64bit.rc != 0
-
-    - name: check for 32-bit audit rules
-      shell: auditctl -l | grep -i 'arch=b32 -S lsetxattr'
-      register: audit_check
-      failed_when: audit_check_32bit.rc != 0
+      failed_when: audit_check.rc != 0
 
     - set_fact:
         stig_text: "PASSED"
 
   rescue:
-  
-    - name: add/update "lsetxattr auid>=1000" 64-bit rules to stig.rules file.
+    - name: add/update "init_module auid>=1000" 64-bit rules to stig.rules file.
       lineinfile:
         path: "{{ target_file }}"
-        regexp: '^(.*)arch=b64.*lsetxattr.*auid>=1000(.*)$'
-        line: -a always,exit -F arch=b64 -S lsetxattr -F auid>=1000 -F auid!=4294967295 -k perm_chng   
+        regexp: '^(.*)arch=b64.*init_module.*auid>=1000(.*)$'
+        line: -a always,exit -F arch=b64 -S init_module -F auid>=1000 -F auid!=-1 -k module_chng  
         state: present
         create: yes
         owner: root
@@ -41,11 +35,11 @@
         mode: 0640 
       register: file_updated_auid1000
 
-    - name: add/update "lsetxattr auid>=1000" 32-bit rules to stig.rules file.
+    - name: add/update "init_module auid>=1000" 32-bit rules to stig.rules file.
       lineinfile:
         path: "{{ target_file }}"
-        regexp: '^(.*)arch=b32.*lsetxattr.*auid>=1000(.*)$'
-        line: -a always,exit -F arch=b32 -S lsetxattr -F auid>=1000 -F auid!=4294967295 -k perm_chng    
+        regexp: '^(.*)arch=b32.*init_module.*auid>=1000(.*)$'
+        line: -a always,exit -F arch=b32 -S init_module -F auid>=1000 -F auid!=-1 -k module_chng   
         state: present
         create: yes
         owner: root
@@ -58,7 +52,6 @@
       when: 
         - file_updated_auid1000.failed == false
         - file_updated_auid1000_32bit.failed == false      
-
 
     - name: reload the rules file
       shell: augenrules --load

@@ -24,8 +24,9 @@
           - audit_check.stdout.find('-a always,exit -F arch=b64 -S fchown -F auid>=1000 -F auid!=-1 -k perm_chng') != -1
         fail_msg: Audit Rules Not Configured
 
-    - set_fact:
-        stig_text: "PASSED"
+    - fail:
+        msg: "FAILED. {{ target_file }} file does not exist."
+      when: rules_file.stat.exists == False
 
   rescue:
   

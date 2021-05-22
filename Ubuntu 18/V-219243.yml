@@ -1,11 +1,11 @@
 ---
 
 - set_fact:
-    stig_id: V-219214
-    stig_text: "FAILED. Ubuntu does not generate audit records for the use and modification of the faillog file."
+    stig_id: V-219243
+    stig_text: "FAILED. Ubuntu does not generate audit records for successful/unsuccessful uses of the ssh-keysign command."
     target_file: /etc/audit/rules.d/stig.rules
 
-- local_action: lineinfile regexp='^V-219214' path="{{ output_path }}" state=absent
+- local_action: lineinfile regexp='^V-219243' path="{{ output_path }}" state=absent
 
 - name: check for stig.rules file existence
   block: 
@@ -19,27 +19,33 @@
       when: rules_file.stat.exists == False
 
     - name: check for audit rules
-      shell: auditctl -l | grep faillog
+      shell: auditctl -l | grep ssh-keysign
       register: audit_check
       failed_when: audit_check.rc != 0
 
     - assert:
         that: 
-          - audit_check.stdout.find(-w /var/log/faillog -p wa -k logins) != -1
+          - audit_check.stdout.find('-a always,exit -F path=/usr/lib/openssh/ssh-keysign -F perm=x -F auid>=1000 -F auid!=-1 -k privileged-ssh') != -1
         msg: Audit Rules Not Configured
 
     - set_fact:
         stig_text: "PASSED"
 
   rescue:
-
-    - name: add/update "faillog" rules to stig.rules file.
+    - name: remove any existing "ssh-keysign" rules from audit file      
       lineinfile:
         path: "{{ target_file }}"
-        regexp: '^(.*)faillog(.*)$'
-        line: -w /var/log/faillog -p wa -k logins        
-        state: present
+        regexp: '^(.*)ssh-keysign(.*)$'
+        state: absent
         create: yes
+        backup: yes
+
+    - name: add/update "ssh-keysign" rules to stig.rules file.
+      lineinfile:
+        path: "{{ target_file }}"
+        line: -a always,exit -F path=/usr/lib/openssh/ssh-keysign -F perm=x -F auid>=1000 -F auid!=4294967295 -k privileged-ssh        
+        state: present
+        create: no
         owner: root
         group: root
         mode: 0640 

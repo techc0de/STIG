@@ -1,50 +1,47 @@
 ---
 
 - set_fact:
-    stig_id: V-219214
-    stig_text: "FAILED. Ubuntu does not generate audit records for the use and modification of the faillog file."
+    stig_id: V-219223
+    stig_text: "FAILED. Ubuntu does not generate audit records for all account creations, modifications, disabling, and termination events that affect /etc/shadow."
     target_file: /etc/audit/rules.d/stig.rules
 
-- local_action: lineinfile regexp='^V-219214' path="{{ output_path }}" state=absent
+- local_action: lineinfile regexp='^V-219223' path="{{ output_path }}" state=absent
 
-- name: check for stig.rules file existence
+- name: Check for stig.rules config file existence
   block: 
+
     - name: check for the file
       stat:
         path: "{{ target_file }}"
       register: rules_file
 
-    - fail:
-        msg: "FAILED. {{ target_file }} file does not exist."
-      when: rules_file.stat.exists == False
-
     - name: check for audit rules
-      shell: auditctl -l | grep faillog
+      shell: auditctl -l | grep shadow
       register: audit_check
       failed_when: audit_check.rc != 0
 
     - assert:
         that: 
-          - audit_check.stdout.find(-w /var/log/faillog -p wa -k logins) != -1
-        msg: Audit Rules Not Configured
+          - audit_check.stdout_lines.find('#') == -1
+          - audit_check.stdout_lines.find('-w /etc/shadow -p wa -k usergroup_modification') != -1
+        fail_msg: Audit Rules Not Configured
 
     - set_fact:
         stig_text: "PASSED"
 
   rescue:
 
-    - name: add/update "faillog" rules to stig.rules file.
+    - name: add/update the audit rules for '/etc/shadow'.
       lineinfile:
         path: "{{ target_file }}"
-        regexp: '^(.*)faillog(.*)$'
-        line: -w /var/log/faillog -p wa -k logins        
+        line: -w /etc/shadow -p wa -k usergroup_modification
         state: present
         create: yes
         owner: root
         group: root
         mode: 0640 
       register: file_updated
-  
+
     - set_fact:
         stig_text: "PASSED"
       when: file_updated.failed == false
@@ -58,3 +55,6 @@
 
   always:
     - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+
+
+

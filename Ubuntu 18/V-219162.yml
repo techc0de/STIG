@@ -44,7 +44,7 @@
         mode: 0600
         state: present
         create: yes
-        regexp: '^#*\s*active.*$'
+        regexp: '^(.*)active(.*)$'
         line: active = yes
       register: file_updated
 

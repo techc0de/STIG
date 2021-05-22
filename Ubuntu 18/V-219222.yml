@@ -1,11 +1,11 @@
 ---
 
 - set_fact:
-    stig_id: V-219179
-    stig_text: "FAILED. Passwords for new users doesn't have a 60-day maximum password lifetime restriction."
+    stig_id: V-219222
+    stig_text: "FAILED. Ubuntu does not generate audit records for all account creations, modifications...events."
     target_file: /etc/audit/rules.d/stig.rules
 
-- local_action: lineinfile regexp='^V-219179' path="{{ output_path }}" state=absent
+- local_action: lineinfile regexp='^V-219222' path="{{ output_path }}" state=absent
 
 - name: Check for stig.rules config file existence
   block: 
@@ -15,31 +15,40 @@
       register: rules_file
 
     - name: check for audit rules
-      shell: grep -i pass_max_days 60 "{{ target_file }}"
+      shell: auditctl -l | grep gshadow
       register: audit_check
       failed_when: audit_check.rc != 0
+
+    - assert:
+        that: 
+          - audit_check.stdout.find('-w /etc/gshadow -p wa -k usergroup_modification') != -1
+        fail_msg: Audit Rules Not Configured
 
     - fail:
         msg: "FAILED. {{ target_file }} file does not exist."
       when: rules_file.stat.exists == False
 
-    - set_fact:
-        stig_text: "PASSED"
 
   rescue:
-  
-    - name: Configure the Ubuntu operating system to enforce a 60-day maximum password lifetime.
+   
+    - name: configure the audit rules for gshadow.
       lineinfile:
         path: "{{ target_file }}"
-        regexp: '^(.*)PASS_MAX_DAYS(.*)$'
-        line: PASS_MAX_DAYS 60
+        line: -w /etc/gshadow -p wa -k usergroup_modification
         state: present
+        create: yes
+        owner: root
+        group: root
+        mode: 0640 
       register: file_updated
 
     - set_fact:
         stig_text: "PASSED"
-      when: 
-        - file_updated.failed == false
+      when: file_updated.failed == false
+
+    - name: reload the rules file
+      shell: augenrules --load
+      register: reload_rules
 
     - debug:
         msg: "{{ stig_id }} {{stig_text}}"

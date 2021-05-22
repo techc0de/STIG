@@ -18,26 +18,25 @@
         msg: "FAILED. {{ target_file }} file does not exist."
       when: rules_file.stat.exists == False
 
-    - name: check for audit rules
-      shell: auditctl -l | grep setxattr
+    - name: check for 64-bit audit rules
+      shell: auditctl -l | grep -i 'arch=b64 -S setxattr'
       register: audit_check
-      failed_when: audit_check.rc != 0
+      failed_when: audit_check_64bit.rc != 0
 
-    - assert:
-        that: 
-          - audit_check.stdout.find('-a always,exit -F arch=b64 -S setxattr -F auid>=1000 -F auid!=-1 -k perm_mod') != -1
-          - audit_check.stdout.find('-a always,exit -F arch=b64 -S setxattr -F auid=0 -k perm_mod') != -1
-        msg: Audit Rules Not Configured
+    - name: check for 32-bit audit rules
+      shell: auditctl -l | grep -i 'arch=b32 -S setxattr'
+      register: audit_check
+      failed_when: audit_check_32bit.rc != 0
 
     - set_fact:
         stig_text: "PASSED"
 
   rescue:
   
-    - name: add/update "setxattr auid>=1000" rules to stig.rules file.
+    - name: add/update "setxattr auid>=1000" 64-bit rules to stig.rules file.
       lineinfile:
         path: "{{ target_file }}"
-        regexp: '^(.*)setxattr.*auid>=1000(.*)$'
+        regexp: '^(.*)arch=b64.*setxattr.*auid>=1000(.*)$'
         line: -a always,exit -F arch=b64 -S setxattr -F auid>=1000 -F auid!=4294967295 -k perm_mod    
         state: present
         create: yes
@@ -47,10 +46,10 @@
       register: file_updated_auid1000
 
 
-    - name: add/update "setxattr auid=0" rules to stig.rules file.
+    - name: add/update "setxattr auid=0" 64-bit rules to stig.rules file.
       lineinfile:
         path: "{{ target_file }}"
-        regexp: '^(.*)setxattr.*auid=0(.*)$'
+        regexp: '^(.*)arch=b64.*setxattr.*auid=0(.*)$'
         line: -a always,exit -F arch=b64 -S setxattr -F auid=0 -k perm_mod        
         state: present
         create: yes
@@ -58,12 +57,38 @@
         group: root
         mode: 0640 
       register: file_updated_auid0
+
+    - name: add/update "setxattr auid>=1000" 32-bit rules to stig.rules file.
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^(.*)arch=b32.*setxattr.*auid>=1000(.*)$'
+        line: -a always,exit -F arch=b32 -S setxattr -F auid>=1000 -F auid!=4294967295 -k perm_mod    
+        state: present
+        create: yes
+        owner: root
+        group: root
+        mode: 0640 
+      register: file_updated_auid1000_32bit
+
+    - name: add/update "setxattr auid=0" 32-bit rules to stig.rules file.
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^(.*)arch=b32.*setxattr.*auid=0(.*)$'
+        line: -a always,exit -F arch=b32 -S setxattr -F auid=0 -k perm_mod        
+        state: present
+        create: yes
+        owner: root
+        group: root
+        mode: 0640 
+      register: file_updated_auid0_32bit      
   
     - set_fact:
         stig_text: "PASSED"
       when: 
         - file_updated_auid1000.failed == false
         - file_updated_auid0.failed == false
+        - file_updated_auid1000_32bit.failed == false
+        - file_updated_auid0_32bit.failed == false
 
     - name: reload the rules file
       shell: augenrules --load

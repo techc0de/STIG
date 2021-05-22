@@ -14,39 +14,41 @@
         path: "{{ target_file }}"
       register: rules_file
 
-    - name: Verify users are provided with feedback on when account accesses last occurred.
-      shell:  grep pam_lastlog "{{ target_file }}" | grep -i 'required'
-      register: audit_check
-      failed_when: audit_check.rc != 0
+    - shell: "grep '^session.*pam_lastlog' {{ target_file }}"
+      register: login_check
+      failed_when: login_check.rc == 2 or login_check.rc == 3
 
     - fail:
         msg: "FAILED. {{ target_file }} file does not exist."
       when: rules_file.stat.exists == False
 
     - set_fact:
-        stig_text: "PASSED"
+        stig_text: "{{ stig_id }} PASSED"
 
   rescue:
- 
-    - name: Configure the Ubuntu operating system to provide users with feedback on when account accesses last occurred. 
-      lineinfile:
-        path: "{{ target_file }}"
-        owner: root
-        group: root
-        mode: 0600
-        state: present
-        create: yes
-        regexp: '^#*\s*pam_lastlog.*$'
-        line: session required pam_lastlog.so showfailed
-      register: file_updated
+
+    - name: configure the os to provide users with feedback on when account accesses last occurred
+      become: true
+      pamd:
+        path: '/etc/pam.d/'
+        name: login
+        type: session
+        control: required
+        module_path: pam_loginuid.so
+        new_type: session
+        new_control: required
+        new_module_path: pam_lastlog.so
+        module_arguments: 'showfailed'
+        state: after
+      register: config_updated
 
     - set_fact:
-        stig_text: "PASSED"
-      when: file_updated.failed == false
+        stig_text: "{{ stig_id }} PASSED"
+      when: config_updated.failed == false
 
     - debug:
-        msg: "{{ stig_id }} {{stig_text}}"
+        var: stig_text
 
   always:
-    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
 
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

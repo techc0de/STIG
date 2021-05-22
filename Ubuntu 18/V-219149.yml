@@ -33,7 +33,7 @@
         mode: 0600
         state: present
         create: yes
-        regexp: '^#*\s*GRUB_CMDLINE_LINUX.*$'
+        regexp: '^GRUB_CMDLINE_LINUX=.*$'
         line: GRUB_CMDLINE_LINUX="audit=1"
       register: file_updated
 

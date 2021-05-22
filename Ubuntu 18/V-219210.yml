@@ -1,11 +1,11 @@
 ---
 
 - set_fact:
-    stig_id: V-219174
+    stig_id: V-219210
     stig_text: "FAILED. Ubuntu does not enforce password complexity by requiring that at least one special character be used."
     target_file: /etc/security/pwquality.conf
      
-- local_action: lineinfile regexp='^V-219174' path="{{ output_path }}" state=absent
+- local_action: lineinfile regexp='^V-219210' path="{{ output_path }}" state=absent
 
 - name: Check for config file existence
   block: 
@@ -33,7 +33,7 @@
         mode: 0600
         state: present
         create: yes
-        regexp: '^#*\s*ocredit.*$'
+        regexp: '^(.*)ocredit(.*)$'
         line: 'ocredit=-1'
       register: file_updated
 

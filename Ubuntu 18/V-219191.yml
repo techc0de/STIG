@@ -23,7 +23,7 @@
       register: file
 
     - fail:
-        msg: "FAILED. {{ target_files }} file does not exist or files permission are incorrect."
+        msg: "FAILED. {{ target_file }} file does not exist or files permission are incorrect."
       when: audit_file.stat.exists == False or file.stat.mode != '0750'
 
   rescue:

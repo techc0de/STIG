@@ -33,7 +33,7 @@
       lineinfile:
         path: "{{ target_file }}"
         regexp: '^(.*)sudo.log(.*)$'
-        line: -w /var/log/sudo.log -p wa -k actions       
+        line: -w /var/log/sudo.log -p wa -k priv_actions       
         state: present
         create: yes
         owner: root

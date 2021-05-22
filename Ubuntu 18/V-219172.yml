@@ -33,7 +33,7 @@
         mode: 0600
         state: present
         create: yes
-        regexp: '^#*\s*ucredit.*$'
+        regexp: '^(.*)ucredit(.*)$'
         line: 'ucredit=-1'
       register: file_updated
 

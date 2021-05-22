@@ -20,7 +20,7 @@
       failed_when: status.rc != 0
 
     - name: check if audisp is active
-      shell: grep -i active "{{ target_file }}" | awk '{print $3}'
+      shell: "grep -i 'active' {{ target_file }} | awk '{print $3}'"
       register: audit_check
       failed_when: audit_check.stdout != 'yes'
 
@@ -45,7 +45,7 @@
         mode: 0600
         state: present
         create: yes
-        regexp: '^#*\s*active.*$'
+        regexp: '^(.*)active.*$'
         line: active = yes
       register: file_updated
 

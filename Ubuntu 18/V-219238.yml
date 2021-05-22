@@ -1,11 +1,11 @@
 ---
 
 - set_fact:
-    stig_id: V-219214
-    stig_text: "FAILED. Ubuntu does not generate audit records for the use and modification of the faillog file."
+    stig_id: V-219238
+    stig_text: "FAILED. Ubuntu does not generate audit records for successful/unsuccessful uses of the su command."
     target_file: /etc/audit/rules.d/stig.rules
 
-- local_action: lineinfile regexp='^V-219214' path="{{ output_path }}" state=absent
+- local_action: lineinfile regexp='^V-219238' path="{{ output_path }}" state=absent
 
 - name: check for stig.rules file existence
   block: 
@@ -19,39 +19,36 @@
       when: rules_file.stat.exists == False
 
     - name: check for audit rules
-      shell: auditctl -l | grep faillog
+      shell: auditctl -l | grep '/bin/su'
       register: audit_check
-      failed_when: audit_check.rc != 0
+      failed_when: audit_check.rc != 0 or audit_check.stdout_lines.find(#) != -1
 
     - assert:
-        that: 
-          - audit_check.stdout.find(-w /var/log/faillog -p wa -k logins) != -1
-        msg: Audit Rules Not Configured
+        that: audit_check_stdout_lines.find('-a always,exit -F path=/bin/su -F perm=x -F auid>=1000 -F auid!=-1 -k privileged-priv_change') != -1
 
     - set_fact:
         stig_text: "PASSED"
 
   rescue:
 
-    - name: add/update "faillog" rules to stig.rules file.
+    - name: Configure the Ubuntu operating system to generate audit records when successful/unsuccessful attempts to use the "su" command occur.
       lineinfile:
         path: "{{ target_file }}"
-        regexp: '^(.*)faillog(.*)$'
-        line: -w /var/log/faillog -p wa -k logins        
+        line: -a always,exit -F path=/bin/su -F perm=x -F auid>=1000 -F auid!=4294967295 -k privileged-priv_change     
         state: present
         create: yes
         owner: root
         group: root
         mode: 0640 
       register: file_updated
-  
-    - set_fact:
-        stig_text: "PASSED"
-      when: file_updated.failed == false
 
     - name: reload the rules file
       shell: augenrules --load
       register: reload_rules
+  
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_updated.failed == false
 
     - debug:
         msg: "{{ stig_id }} {{stig_text}}"

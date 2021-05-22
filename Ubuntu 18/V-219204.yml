@@ -29,7 +29,7 @@
   
     - set_fact:
         stig_text: "PASSED"
-      when: file_perms_rule.changed == true
+      when: file_perms.changed == true
 
     - debug:
         msg: "{{ stig_id }} {{ stig_text }}"

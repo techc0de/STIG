@@ -1,0 +1,45 @@
+---
+
+- name: ensure Ubuntu 18 uncomplicated firewall service is enabled and running.
+  hosts: localhost
+  become: true
+
+  vars:
+    stig_id: V-219337
+    stig_text: "The Ubuntu operating system must enable and run the uncomplicated firewall(ufw)."
+
+  tasks:
+#   - name: check if Uncomplicated Firewall is enabled and running on the system
+
+    - name: check if ufw is enable
+      shell: systemctl is-enabled ufw
+      register: ufw_enable
+      failed_when: ufw_enable == 'disabled'
+
+
+    - name: check if firewall is running
+      shell: systemctl is-active ufw
+      register: ufw_active
+      failed_when: ufw_enable == 'inactive'
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+
+    - name: enable firewall if it's disabled.
+      shell: systemctl enable ufw.service
+      register: ufw_enabled_service
+
+
+    - name: start firewall if it isn't active.
+      shell: systemctl start ufw.service
+      register: ufw_active_running
+
+    - set_fact:       
+        stig_text: "{{ stig_id }} PASSED"
+      when: 
+        - ufw_enable == 'enabled'
+        - ufw_active_running.rc == '0'
+
+    - debug:
+        var: stig_text

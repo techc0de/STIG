@@ -5,7 +5,7 @@
     stig_text: 'FAILED. Audit configuration files are write-accessible by unauthorized groups.'
     target_files: 
       - /etc/audit/
-      - /etc/audit/rules.d/*
+      - /etc/audit/rules.d/
 
 - local_action: lineinfile regexp='^V-219236' path="{{ output_path }}" state=absent
 
@@ -39,7 +39,6 @@
         group: root
         mode: 0640
         state: directory
-        recurse: yes
       register: dir_perms_rule 
 
  
@@ -51,7 +50,9 @@
         group: root
         mode: 0640
         state: touch
-      loop: "{{ target_files }}"
+      loop:
+        - /etc/audit/audit.rules
+        - /etc/audit/auditd.conf
       register: file_perms_rule 
   
     - set_fact:

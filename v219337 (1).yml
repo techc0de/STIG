@@ -1,0 +1,47 @@
+---
+
+- set_fact:
+    stig_id: V-219337
+    stig_text: "The Ubuntu operating system must enable and run the uncomplicated firewall(ufw)."
+
+- local_action: lineinfile regexp='^V-219337' path="{{ output_path }}" state=absent
+
+- name: Ensure uncomplicated firewall is enabled and running.
+  block:
+
+    - name: check if firewall is enabled.          
+      shell: 'systemctl is-enabled ufw'
+      register: ufw_enable
+
+    - name: check if firewall is running           
+      shell: 'systemctl is-active ufw'
+      register: ufw_active
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: 
+        - ufw_enable.stdout == 'enabled'
+        - ufw_active.stdout == 'active'
+
+  rescue:
+
+    - name: change the firewall status to 'enabled' if it's disabled.        
+      shell: systemctl enable ufw.service
+      register: ufw_enabled_service
+  
+    - name: set firewall service to 'running' if it not running.                 
+      shell: systemctl start ufw.service
+      register: ufw_active_running
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: 
+        - ufw_enabled_service.changed == true
+        - ufw_active_running.changed == true
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+

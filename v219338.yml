@@ -1,0 +1,64 @@
+---
+
+- set_fact:
+    stig_id: V-219338
+    stig_text: "FAILED. Ubuntu does not notify the system administrator when changes to the baseline configuration or anomalies in the operation of any security functions are discovered."
+    target_file: /etc/default/aide
+
+- local_action: lineinfile regexp='^V-219338' path="{{ output_path }}" state=absent
+
+- name: Check for stig.rules config file existence
+  block: 
+    - name: check for the file
+      stat:
+        path: "{{ target_file }}"
+      register: rules_file
+
+    - name: check for audit rules
+      shell: grep SILENTREPORTS /etc/default/aide
+      register: audit_check
+      failed_when: audit_check.rc != 0 or audit_check.stdout == 'yes'
+
+    - assert:
+        that: 
+          - audit_check.stdout.find('#') == -1
+        fail_msg: Audit Rules Not Configured
+
+    - fail:
+        msg: "FAILED. {{ target_file }} file does not exist."
+      when: rules_file.stat.exists == False
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+    - name: remove any existing "silent reports" rules from audit file      
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^(.*)SILENTREPORTS(.*)$'
+        state: absent
+        create: yes
+        backup: yes
+
+    - name: Configure the Ubuntu operating system to notify designated personnel if baseline configurations are changed in an unauthorized manner.
+      lineinfile:
+        path: "{{ target_file }}"
+        line: SILENTREPORTS=no
+        state: present
+        create: yes
+      register: file_updated
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_updated.failed == false
+
+    - name: reload the rules file
+      shell: augenrules --load
+      register: reload_rules
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+

@@ -1,0 +1,69 @@
+---
+
+- set_fact:
+    stig_id: V-219226
+    stig_text: "FAILED. Ubuntu does not alert the ISSO and SA (at a minimum) in the event of an audit processing failure."
+    target_file: /etc/audit/auditd.conf
+
+- local_action: lineinfile regexp='^V-219226' path="{{ output_path }}" state=absent
+
+- name: Check for stig.rules config file existence
+  block: 
+
+    - name: check for the file
+      stat:
+        path: "{{ target_file }}"
+      register: rules_file
+
+    - name: check for audit rules
+      shell: grep 'action_mail_acct = root' "{{ target_file }}"
+      register: audit_check
+      failed_when: audit_check.rc != 0
+
+    - assert:
+        that: 
+          - audit_check.stdout_lines.find('#') == -1
+          - audit_check.stdout_lines.find('action_mail_acct = root') != -1
+        fail_msg: Audit Rules Not Configured
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: remove any existing "action mail acct" rules from audit file      
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^(.*)action_mail_acct(.*)$'
+        state: absent
+        create: yes
+        backup: yes
+
+    - name: add/update the audit rules for 'action mail acct'.
+      lineinfile:
+        path: "{{ target_file }}"
+        line: |
+          action_mail_acct = root
+        state: present
+        create: yes
+        owner: root
+        group: root
+        mode: 0640 
+      register: file_updated
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_updated.failed == false
+
+    - name: reload the rules file
+      shell: augenrules --load
+      register: reload_rules
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+
+
+

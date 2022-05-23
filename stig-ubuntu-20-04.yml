@@ -1,0 +1,183 @@
+- hosts: all
+  become_user:
+  become_method: sudo
+  become: yes
+
+  vars_files:
+    - private/passwords.yml
+    - group_vars/aws_ec2.yml
+    # - group_vars/my_box.yml # disable this when run playbook against EC2
+  vars:
+    output_path: "/tmp/stig-{{ansible_hostname}}.txt"
+    update_int: '\d+'
+    security_int: ';\d+'
+  pre_tasks:
+
+    - name: install required packages
+      become: true
+      package:
+        name:
+          - ntp
+          - ntpdate
+          - aide
+          - auditd
+          - audispd-plugins
+        state: present
+        update_cache: yes
+        cache_valid_time: 3600
+        dpkg_options: 'force-confnew'
+
+  tasks:
+
+    - name: check for graphical interface
+      stat:
+        path: /etc/X11/default-display-manager
+      register: dm_file
+
+    - name: check to see if we are booting with EFI or UEFI
+      set_fact:
+        booted_with_efi: "{{ ansible_mounts | selectattr('mount', 'equalto', '/boot/efi') | list | length > 0 }}"
+        has_display: "{{ dm_file.stat.exists }}"
+
+
+    # - include_tasks: tasks/stig/20.04/V-238363.yml  # FIPS   
+    # - include_tasks: tasks/stig/20.04/V-238204.yml  # GRUB password  
+    # - include_tasks: tasks/stig/20.04/V-238206.yml  # sudo group, must check manually
+
+    # - include_tasks: tasks/stig/20.04/V-238235.yml  # PAM: auto lock account after 3 invalid attempts
+    # - include_tasks: tasks/stig/20.04/V-238228.yml  # PAM: limit brute-force attacks 
+    # - include_tasks: tasks/stig/20.04/V-238236.yml  # AIDE: need to initialize the setup manually after the installation      
+    # - include_tasks: tasks/stig/20.04/V-238201.yml
+    # - include_tasks: tasks/stig/20.04/V-238363.yml
+    # - include_tasks: tasks/stig/20.04/V-238219.yml
+    # - include_tasks: tasks/stig/20.04/V-238218.yml
+    # - include_tasks: tasks/stig/20.04/V-238215.yml
+    # - include_tasks: tasks/stig/20.04/V-238327.yml
+    # - include_tasks: tasks/stig/20.04/V-238326.yml
+    # - include_tasks: tasks/stig/20.04/V-238380.yml
+    # - include_tasks: tasks/stig/20.04/V-238379.yml
+    # - include_tasks: tasks/stig/20.04/V-238297.yml
+    # - include_tasks: tasks/stig/20.04/V-238296.yml
+    # - include_tasks: tasks/stig/20.04/V-238295.yml
+    # - include_tasks: tasks/stig/20.04/V-238294.yml
+    # - include_tasks: tasks/stig/20.04/V-238293.yml
+    # - include_tasks: tasks/stig/20.04/V-238292.yml
+    # - include_tasks: tasks/stig/20.04/V-238214.yml
+    # - include_tasks: tasks/stig/20.04/V-238198.yml
+    # - include_tasks: tasks/stig/20.04/V-238197.yml
+    # - include_tasks: tasks/stig/20.04/V-238344.yml
+    # - include_tasks: tasks/stig/20.04/V-238345.yml
+    # - include_tasks: tasks/stig/20.04/V-238338.yml
+    # - include_tasks: tasks/stig/20.04/V-238202.yml
+    # - include_tasks: tasks/stig/20.04/V-238203.yml
+    # - include_tasks: tasks/stig/20.04/V-238362.yml
+    # - include_tasks: tasks/stig/20.04/V-238357.yml
+    # - include_tasks: tasks/stig/20.04/V-238222.yml
+    # - include_tasks: tasks/stig/20.04/V-238223.yml
+    # - include_tasks: tasks/stig/20.04/V-238221.yml
+    # - include_tasks: tasks/stig/20.04/V-238226.yml    
+    # - include_tasks: tasks/stig/20.04/V-238224.yml
+    # - include_tasks: tasks/stig/20.04/V-238291.yml
+    # - include_tasks: tasks/stig/20.04/V-238290.yml
+    # - include_tasks: tasks/stig/20.04/V-238299.yml
+    # - include_tasks: tasks/stig/20.04/V-238298.yml
+    # - include_tasks: tasks/stig/20.04/V-238198.yml
+    # - include_tasks: tasks/stig/20.04/V-238197.yml
+    # - include_tasks: tasks/stig/20.04/V-238196.yml
+    # - include_tasks: tasks/stig/20.04/V-238220.yml
+    # - include_tasks: tasks/stig/20.04/V-238204.yml
+    # - include_tasks: tasks/stig/20.04/V-238363.yml
+    # - include_tasks: tasks/stig/20.04/V-238235.yml
+    # - include_tasks: tasks/stig/20.04/V-238227.yml
+    # - include_tasks: tasks/stig/20.04/V-238341.yml
+    # - include_tasks: tasks/stig/20.04/V-238340.yml
+    # - include_tasks: tasks/stig/20.04/V-238229.yml    
+    # - include_tasks: tasks/stig/20.04/V-238345.yml
+    # - include_tasks: tasks/stig/20.04/V-238344.yml
+    # - include_tasks: tasks/stig/20.04/V-238346.yml
+    # - include_tasks: tasks/stig/20.04/V-238236.yml
+    # - include_tasks: tasks/stig/20.04/V-238339.yml
+    # - include_tasks: tasks/stig/20.04/V-238231.yml
+    # - include_tasks: tasks/stig/20.04/V-238230.yml
+    # - include_tasks: tasks/stig/20.04/V-238338.yml
+    # - include_tasks: tasks/stig/20.04/V-238339.yml
+    # - include_tasks: tasks/stig/20.04/V-238233.yml
+    # - include_tasks: tasks/stig/20.04/V-238232.yml 
+    # - include_tasks: tasks/stig/20.04/V-238334.yml     
+    # - include_tasks: tasks/stig/20.04/V-238337.yml
+    # - include_tasks: tasks/stig/20.04/V-238330.yml 
+    # - include_tasks: tasks/stig/20.04/V-238238.yml
+    # - include_tasks: tasks/stig/20.04/V-238332.yml
+    # - include_tasks: tasks/stig/20.04/V-238333.yml 
+    # - include_tasks: tasks/stig/20.04/V-238239.yml
+    # - include_tasks: tasks/stig/20.04/V-238349.yml 
+    # - include_tasks: tasks/stig/20.04/V-238329.yml
+    # - include_tasks: tasks/stig/20.04/V-238348.yml
+    # - include_tasks: tasks/stig/20.04/V-238325.yml 
+    # - include_tasks: tasks/stig/20.04/V-238324.yml
+    # - include_tasks: tasks/stig/20.04/V-238322.yml 
+    # - include_tasks: tasks/stig/20.04/V-238320.yml
+    # - include_tasks: tasks/stig/20.04/V-238240.yml 
+    # - include_tasks: tasks/stig/20.04/V-238241.yml 
+    # - include_tasks: tasks/stig/20.04/V-238242.yml 
+    # - include_tasks: tasks/stig/20.04/V-238243.yml 
+    # - include_tasks: tasks/stig/20.04/V-238244.yml 
+    # - include_tasks: tasks/stig/20.04/V-238245.yml 
+    # - include_tasks: tasks/stig/20.04/V-238246.yml     
+    # - include_tasks: tasks/stig/20.04/V-238247.yml 
+    # - include_tasks: tasks/stig/20.04/V-238248.yml     
+    # - include_tasks: tasks/stig/20.04/V-238249.yml     
+    # - include_tasks: tasks/stig/20.04/V-238343.yml      
+    # - include_tasks: tasks/stig/20.04/V-238310.yml     
+    # - include_tasks: tasks/stig/20.04/V-238316.yml
+    # - include_tasks: tasks/stig/20.04/V-238317.yml
+    # - include_tasks: tasks/stig/20.04/V-238314.yml
+    # - include_tasks: tasks/stig/20.04/V-238315.yml     
+    # - include_tasks: tasks/stig/20.04/V-238318.yml   
+    # - include_tasks: tasks/stig/20.04/V-238319.yml
+    # - include_tasks: tasks/stig/20.04/V-238253.yml     
+    # - include_tasks: tasks/stig/20.04/V-238252.yml
+    # - include_tasks: tasks/stig/20.04/V-238251.yml     
+    # - include_tasks: tasks/stig/20.04/V-238250.yml     
+    # - include_tasks: tasks/stig/20.04/V-238257.yml
+    # - include_tasks: tasks/stig/20.04/V-238304.yml     
+    # - include_tasks: tasks/stig/20.04/V-238301.yml     
+    # - include_tasks: tasks/stig/20.04/V-238264.yml
+    # - include_tasks: tasks/stig/20.04/V-238268.yml     
+    # - include_tasks: tasks/stig/20.04/V-238342.yml     
+    # - include_tasks: tasks/stig/20.04/V-238279.yml     
+    # - include_tasks: tasks/stig/20.04/V-238278.yml     
+    # - include_tasks: tasks/stig/20.04/V-238271.yml     
+    # - include_tasks: tasks/stig/20.04/V-238277.yml        
+    # - include_tasks: tasks/stig/20.04/V-238271.yml 
+    # - include_tasks: tasks/stig/20.04/V-238274.yml 
+    # - include_tasks: tasks/stig/20.04/V-238234.yml 
+    # - include_tasks: tasks/stig/20.04/V-238237.yml 
+    # - include_tasks: tasks/stig/20.04/V-238331.yml
+    # - include_tasks: tasks/stig/20.04/V-238323.yml
+    # - include_tasks: tasks/stig/20.04/V-238305.yml
+    # - include_tasks: tasks/stig/20.04/V-238307.yml
+    # - include_tasks: tasks/stig/20.04/V-238306.yml
+    # - include_tasks: tasks/stig/20.04/V-238308.yml
+    # - include_tasks: tasks/stig/20.04/V-238355.yml
+    # - include_tasks: tasks/stig/20.04/V-238364.yml
+    # - include_tasks: tasks/stig/20.04/V-238370.yml  
+    # - include_tasks: tasks/stig/20.04/V-238371.yml 
+    # - include_tasks: tasks/stig/20.04/V-238372.yml   
+    # - include_tasks: tasks/stig/20.04/V-238373.yml    
+    # - include_tasks: tasks/stig/20.04/V-238374.yml 
+    # - include_tasks: tasks/stig/20.04/V-238375.yml 
+    # - include_tasks: tasks/stig/20.04/V-238376.yml 
+    # - include_tasks: tasks/stig/20.04/V-238377.yml         
+    # - include_tasks: tasks/stig/20.04/V-238378.yml    # must check this STIG manually; risky permission 
+
+
+
+
+
+    # - include: "{{ item }}"
+    #   with_fileglob:
+    # # #     - /home/thuan/projects/sec/fix_snmp.yml
+    # #     #  - /home/thuan/projects/sec/upgrade_kernel.yml
+    #     - /home/thuan/projects/sec/dropbear.yml
+        # - /home/thuan/projects/sec/manage_engine_agent_installation.yml

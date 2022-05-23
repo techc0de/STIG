@@ -1,0 +1,217 @@
+- hosts: aws-servers
+  become_user:
+  become_method: sudo
+  become: yes
+
+  vars_files:
+    - private/passwords.yml
+    - group_vars/aws_ec2.yml
+  vars:
+    output_path: "/tmp/stig-{{ansible_hostname}}.txt"
+    update_int: '\d+'
+    security_int: ';\d+'
+  pre_tasks:
+
+    - name: install required packages
+      become: true
+      package:
+        name:
+          - ntp
+          - ntpdate
+          - aide
+          - auditd
+          - audispd-plugins
+        state: present
+        update_cache: yes
+        cache_valid_time: 3600
+        dpkg_options: 'force-confnew'
+
+  tasks:
+
+    - name: check for graphical interface
+      stat:
+        path: /etc/X11/default-display-manager
+      register: dm_file
+
+    - name: check to see if we are booting with EFI or UEFI
+      set_fact:
+        booted_with_efi: "{{ ansible_mounts | selectattr('mount', 'equalto', '/boot/efi') | list | length > 0 }}"
+        has_display: "{{ dm_file.stat.exists }}"
+
+   
+    # - include_tasks: tasks/stig/ubuntu/18.04/V-219185.yml  # excluded for SSM agent user
+    # - include_tasks: tasks/stig/ubuntu/18.04/V-219147.yml  # set GRUB password  
+    # - include_tasks: tasks/stig/ubuntu/18.04/V-219188.yml  # perm may interfere with SSM agent for AWS Image Builder
+    # - include_tasks: tasks/stig/ubuntu/18.04/V-219191.yml  # /var/log/: default permission 775; this STIG prevent www-data and other user from create/read log/folder
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219316.yml    # PAM pkcs11 pam_pkcs11.conf
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219317.yml    # PAM pkcs11 smartcard auth
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219166.yml    # PAM pam_tally.so
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219164.yml    # PAM pam_faildelay.so    
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219331.yml    # chrony service
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219336.yml    # protect the integrity of audit tools
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219159.yml    # clamav installation
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219319.yml    # PIV credentials    
+    - include_tasks: tasks/stig/ubuntu/18.04/V-233780.yml      
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219227.yml    
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219241.yml   
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219244.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219263.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219264.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219265.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219266.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219329.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-233779.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219222.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219254.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219198.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219180.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219167.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219170.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/v-219234.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219328.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219232.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219233.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219267.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219242.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219337.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219236.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219182.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219196.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219195.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219342.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219340.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219296.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219341.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219186.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219291.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219197.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219221.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219217.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219219.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219220.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219297.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219274.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219273.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219295.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219277.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219275.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219298.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219226.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219223.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219158.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219157.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219268.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219269.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219272.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219211.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219177.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219212.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219312.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219314.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219224.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219336.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219209.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219335.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219313.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-251506.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-251507.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219314.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219336.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219330.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219335.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219208.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219313.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219207.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219243.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219213.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219214.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219215.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219216.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219287.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219303.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219300.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219299.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219302.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219309.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219310.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219311.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219238.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219176.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219239.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219199.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219200.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219218.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219338.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219231.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219168.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219270.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219271.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219279.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219201.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219306.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219202.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219203.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219155.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219206.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219156.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219229.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219230.yml
+    # - include_tasks: tasks/stig/ubuntu/18.04/V-219228.yml   # /var/log/audit/audit.log
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219323.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219250.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219320.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219240.yml    
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219346.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219187.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219190.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219149.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219339.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219161.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219276.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219327.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219178.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219179.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219163.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219174.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219175.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219172.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219173.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219332.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219210.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219162.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219165.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219165.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219301.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219237.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219153.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219322.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219152.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219204.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219205.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219181.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219325.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219307.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219304.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219318.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219315.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219257.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219343.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219344.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219193.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219192.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219326.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219194.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219184.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219235.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219212.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219211.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219177.yml
+    - include_tasks: tasks/stig/ubuntu/18.04/V-219281.yml
+
+
+    # - include: "{{ item }}"
+    #   with_fileglob:
+    # # #     - /home/thuan/projects/sec/fix_snmp.yml
+    # #     #  - /home/thuan/projects/sec/upgrade_kernel.yml
+    #     - /home/thuan/projects/sec/dropbear.yml
+        # - /home/thuan/projects/sec/manage_engine_agent_installation.yml

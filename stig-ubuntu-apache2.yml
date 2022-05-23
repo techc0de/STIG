@@ -1,0 +1,78 @@
+- hosts: aws-servers
+  # become_user:
+  become_method: sudo
+  become: yes
+
+  vars_files:
+    - private/passwords.yml
+    - group_vars/aws_ec2.yml
+  vars:
+    output_path: "/tmp/stig-{{ansible_hostname}}.txt"
+    update_int: '\d+'
+    security_int: ';\d+'
+  pre_tasks:
+
+    - name: install required packages
+      become: true
+      package:
+        name:
+          - ntp
+          - ntpdate
+          - aide
+          - auditd
+          - audispd-plugins
+        state: present
+        update_cache: yes
+        cache_valid_time: 3600
+        dpkg_options: 'force-confnew'
+
+  tasks:
+
+    - name: check for graphical interface
+      stat:
+        path: /etc/X11/default-display-manager
+      register: dm_file
+
+    - name: check to see if we are booting with EFI or UEFI
+      set_fact:
+        booted_with_efi: "{{ ansible_mounts | selectattr('mount', 'equalto', '/boot/efi') | list | length > 0 }}"
+        has_display: "{{ dm_file.stat.exists }}"
+
+    # enable a config file: a2enconf extra-stigs.conf
+    # disable a config file: a2disconf charset.conf
+    # show loaded modules and configs: apachectl -D DUMP_INCLUDES
+
+    - include_tasks: tasks/stig/Apache2/V-214228.yml    
+    - include_tasks: tasks/stig/Apache2/V-214229.yml  
+    - include_tasks: tasks/stig/Apache2/V-214230.yml    
+    - include_tasks: tasks/stig/Apache2/V-214231.yml 
+    - include_tasks: tasks/stig/Apache2/V-214232.yml  
+    - include_tasks: tasks/stig/Apache2/V-214236.yml
+    - include_tasks: tasks/stig/Apache2/V-214239.yml
+    - include_tasks: tasks/stig/Apache2/V-214241.yml      
+    - include_tasks: tasks/stig/Apache2/V-214242.yml     
+    - include_tasks: tasks/stig/Apache2/V-214243.yml    
+    - include_tasks: tasks/stig/Apache2/V-214244.yml  
+    - include_tasks: tasks/stig/Apache2/V-214245.yml  
+    - include_tasks: tasks/stig/Apache2/V-214250.yml   
+    - include_tasks: tasks/stig/Apache2/V-214252.yml 
+    - include_tasks: tasks/stig/Apache2/V-214253.yml  
+    - include_tasks: tasks/stig/Apache2/V-214255.yml  
+    - include_tasks: tasks/stig/Apache2/V-214257.yml    
+    - include_tasks: tasks/stig/Apache2/V-214258.yml    
+    - include_tasks: tasks/stig/Apache2/V-214265.yml 
+    - include_tasks: tasks/stig/Apache2/V-214267.yml  
+    - include_tasks: tasks/stig/Apache2/V-214268.yml  
+    - include_tasks: tasks/stig/Apache2/V-214269.yml   
+    - include_tasks: tasks/stig/Apache2/V-214271.yml  
+    - include_tasks: tasks/stig/Apache2/V-214273.yml      
+    - include_tasks: tasks/stig/Apache2/V-214274.yml  
+  
+
+
+    # - include: "{{ item }}"
+    #   with_fileglob:
+    # # #     - /home/thuan/projects/sec/fix_snmp.yml
+    # #     #  - /home/thuan/projects/sec/upgrade_kernel.yml
+    #     - /home/thuan/projects/sec/dropbear.yml
+        # - /home/thuan/projects/sec/manage_engine_agent_installation.yml

@@ -1,0 +1,60 @@
+---
+
+- set_fact:
+    stig_id: V-238298
+    stig_text: "FAILED. Ubuntu doesn't produce audit records and reports containing info to establish when...and the outcome for all DoD-defined auditable events."
+  
+- local_action: lineinfile regexp='^V-238298' path="{{ output_path }}" state=absent
+
+- name: Ensure auditd package is installed.
+  block: 
+
+    - name: check for auditd package
+      shell: dpkg -l | grep auditd
+      register: package_check
+      failed_when: package_check.rc != 0
+
+    - name: Check if audit service is enabled.
+      shell: systemctl is-enabled auditd.service
+      register: shell_check
+      failed_when: shell_check.rc != 0
+
+    - name: Check if audit service is active and running.
+      shell: systemctl is-active auditd.service
+      register: status_check
+      failed_when: status_check.stdout != 'active'
+ 
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: Install auditd package if it isn't installed.    
+      become: true
+      apt:
+        name: auditd
+        state: present
+      register: install_pkg
+
+    - name: start and enable auditd service
+      service:
+        name: auditd
+        state: started
+        enabled: yes
+      register: enable_service
+
+    - name: reload augenrules
+      shell: augenrules --load
+ 
+    - set_fact:
+        stig_text: "PASSED"
+      when: install_pkg.failed == false or enable_service.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+
+
+

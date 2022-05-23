@@ -1,0 +1,58 @@
+---
+
+- set_fact:
+    stig_id: V-238333
+    stig_text: "FAILED. Ubuntu does not configured to use TCP syncookies."
+    target_file: /etc/sysctl.conf
+
+- local_action: lineinfile regexp='^V-238333' path="{{ output_path }}" state=absent
+
+- name: Check for stig.rules config file existence
+  block: 
+    - name: check for the file
+      stat:
+        path: "{{ target_file }}"
+      register: rules_file
+
+    - name: check the value of TCP syncookies
+      shell: sysctl net.ipv4.tcp_syncookies | awk '{print $3}'
+      register: audit_check
+      failed_when: audit_check.stdout != 1
+
+    - name: check the saved value of TCP syncookies 
+      shell: grep -i net.ipv4.tcp_syncookies /etc/sysctl.conf /etc/sysctl.d/* | grep -v '#'
+      register: tcp_saved_value
+      failed_when: tcp_saved_value.rc != 0
+
+    - set_fact:
+        stig_text: "PASSED"
+      
+  rescue:
+
+    - name: configure the Ubuntu to use TCP syncookies
+      become: true
+      shell: sysctl -w net.ipv4.tcp_syncookies=1
+      register: tcp_fix
+
+    - name: update config file
+      become: true
+      lineinfile:
+        path: /etc/sysctl.conf
+        regexp: '^\#*\s*net.ipv4.tcp_syncookies'
+        line: net.ipv4.tcp_syncookies = 1
+        create: no
+        state: present
+      register: config_updated
+
+    - set_fact: 
+        stig_text: "PASSED"
+      when: 
+        - tcp_fix.rc == 0 
+        - config_updated.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+

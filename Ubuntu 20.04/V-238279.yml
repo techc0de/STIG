@@ -1,0 +1,60 @@
+---
+- set_fact:
+    stig_id: V-238279
+    stig_text: "FAILED. Ubuntu does not generate audit record when attempts to use chsh command."
+    target_file: /etc/audit/rules.d/stig.rules
+
+- local_action: lineinfile regexp='^V-238279' path="{{ output_path }}" state=absent
+
+- name: check for audit config file existence
+  block: 
+    - name: check for the file
+      stat:
+        path: "{{ target_file }}"
+      register: rules_file
+
+    - fail:
+        msg: "FAILED. {{ target_file }} file does not exist."
+      when: rules_file.stat.exists == False
+
+    - name: check for audit rules
+      shell: auditctl -l | grep chsh
+      register: audit_check
+      failed_when: audit_check.stdout | length < 0
+
+    - assert:
+        that: 
+          - audit_check.stdout.find('-a always,exit -F path=/usr/bin/chsh -F perm=x -F auid>=1000 -F auid!=-1 -k priv_cmd') != -1
+        msg: Crontab Audit Rules Not Configured
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+  
+    - name: configure the audit system to generate an audit event for any successful/unsuccessful use of the "chcsh" command.
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^(.*)chsh(.*)$'
+        line: -a always,exit -F path=/usr/bin/chsh -F perm=x -F auid>=1000 -F auid!=-1 -k priv_cmd
+        state: present
+        create: yes
+        owner: root
+        group: root
+        mode: 0640 
+      register: file_updated
+  
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_updated.failed == false
+
+    - name: reload the rules file
+      shell: augenrules --load
+      ignore_errors: true
+      register: reload_rules
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

@@ -1,0 +1,65 @@
+---
+
+- set_fact:
+    stig_id: V-238345
+    stig_text: 'FAILED. Ubuntu does not have directories that contain system commands owned by root.'
+
+- local_action: lineinfile regexp='^V-238345' path="{{ output_path }}" state=absent
+
+- name: Ensure system directories are own by root group.
+  block: 
+    - name: check that the system command files are group-owned by "root"
+      become: true
+      stat:
+        path: "{{ item }}"
+      loop:
+        - /bin 
+        - /sbin 
+        - /usr/bin 
+        - /usr/sbin 
+        - /usr/local/bin 
+        - /usr/local/sbin
+      
+      register: lib_files
+
+    - name: Verify the ownership of command directories are belong to root.
+      loop: |
+        {{ lib_files.results | map(attribute='item')
+        | zip(lib_files.results | map(attribute='stat.pw_name'))
+        | list }}
+
+      assert:
+        that: item.1 == 'root'
+      loop_control:
+        label: "{{ item.0 }}"
+      
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: configure the system commands to be protected from unauthorized access.
+      become: true
+      file:
+        path: "{{ item.item }}"
+        owner: root
+        state: "{{ 'file' if item.stat.exists else 'touch' }}"
+      loop: "{{ lib_files.results }}"
+      register: file_perms_rule 
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_perms_rule.changed
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+
+
+
+
+
+
+

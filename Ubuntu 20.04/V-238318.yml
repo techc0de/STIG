@@ -1,0 +1,66 @@
+---
+
+- set_fact:
+    stig_id: V-238318
+    stig_text: "FAILED. Ubuntu does not generate records for successful/unsuccessful attempts to use modprobe command."
+    target_file: /etc/audit/rules.d/stig.rules
+
+- local_action: lineinfile regexp='^V-238318' path="{{ output_path }}" state=absent
+
+- name: Check for stig.rules config file existence
+  block: 
+    - name: check for the file
+      stat:
+        path: "{{ target_file }}"
+      register: rules_file
+
+    - name: check for audit rules
+      shell: auditctl -l | grep "/sbin/modprobe"
+      register: audit_check
+      failed_when: audit_check.rc != 0
+
+    - assert:
+        that: 
+          - audit_check.stdout.find(#) == -1
+          - audit_check.stdout.find('-w /sbin/modprobe -p x -k modules') != -1
+        fail_msg: Audit Rules Not Configured
+
+    - fail:
+        msg: "FAILED. {{ target_file }} file does not exist."
+      when: rules_file.stat.exists == False
+
+
+  rescue:
+    - name: remove any existing "modprobe" rules from audit file      
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^(.*)modprobe(.*)$'
+        state: absent
+        create: yes
+        backup: yes
+
+    - name: add/update the audit rules for 'modprobe'.
+      lineinfile:
+        path: "{{ target_file }}"
+        line: -w /sbin/modprobe -p x -k modules
+        state: present
+        create: yes
+        owner: root
+        group: root
+        mode: 0640 
+      register: file_updated
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_updated.failed == false
+
+    - name: reload the rules file
+      shell: augenrules --load
+      register: reload_rules
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+

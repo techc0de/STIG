@@ -1,0 +1,48 @@
+---
+
+- set_fact:
+    stig_id: V-238236
+    stig_text: "FAILED. Ubuntu doesn't have AIDE install."
+
+- local_action: lineinfile regexp='^V-238236' path="{{ output_path }}" state=absent
+
+- name: Verify that the Advanced Intrusion Detection Environment (AIDE) default script used to check file integrity each 30 days or less is unchanged.
+  block: 
+
+    - shell: dpkg -l | grep aide
+      register: pkg_check
+      failed_when: pkg_check.stdout.find('ii  aide') == -1
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: install aide package
+      become: true
+      apt:
+        name: aide
+        state: present
+        update_cache: yes
+        cache_valid_time: 3600
+      register: install_package
+
+    - name: install aide-common package
+      shell: |
+        cd /tmp; apt download aide-common
+        dpkg-deb --fsys-tarfile /tmp/aide-common_*.deb | sudo tar -x ./usr/share/aide/config/cron.daily/aide -C /
+        cp -f /usr/share/aide/config/cron.daily/aide /etc/cron.daily/aide
+      register: aide-common      
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: 
+        - install_package.failed == false
+        - aide-common.failed == false
+        
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

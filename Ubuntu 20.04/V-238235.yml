@@ -1,0 +1,132 @@
+---
+
+- set_fact:
+    stig_id: V-238235
+    stig_text: "FAILED. Ubuntu doesn't automatically lock user account after three invalid logon attempts."
+    target_file: /etc/pam.d/common-auth
+
+- local_action: lineinfile regexp='^V-238235' path="{{ output_path }}" state=absent
+
+- name: Check for common-auth file existence
+  block: 
+
+    - name: check for file existence
+      shell: grep -i faillock "{{ target_file }}"
+      register: pam_check
+      failed_when: pam_check.rc != 0
+
+- name: Check for pam_faillock module
+  block: 
+
+    - name: check for directives existence
+      shell: egrep 'silent|audit|deny|fail_interval|unlock_time' /etc/security/faillock.conf
+      register: directives
+      failed_when: directives.rc != 0
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: enable authfail directive
+      become: true
+      pamd:
+        path: '/etc/pam.d/'
+        name: common-auth
+        type: auth
+        control: '[success=1 default=ignore]'
+        module_path: 'pam_unix.so'
+        module_arguments: 'nullok'
+        new_type: auth
+        new_control: '[default=die]'
+        new_module_path: pam_faillock.so
+        new module_arguments: authfail
+        state: after
+      register: authfail
+
+    - name: enable authsucc directive
+      become: true
+      pamd:
+        path: '/etc/pam.d/'
+        name: common-auth
+        type: auth
+        control: '[default=die]'
+        module_path: pam_faillock.so
+        module_arguments: authfail
+        new_type: auth
+        new_control: pam_faillock.so 
+        new_module_path: authsucc
+        state: after
+
+    - name: Configure audit value
+      become: true
+      lineinfile:
+        path: /etc/security/faillock.conf 
+        create: no
+        state: present
+        regexp: '^(.*)audit(.*)$'
+        line: audit
+        backrefs: no
+      register: audit
+
+    - name: Configure silent value
+      become: true
+      lineinfile:
+        path: /etc/security/faillock.conf 
+        create: no
+        state: present
+        regexp: '^(.*)silent(.*)$'
+        line: silent
+        backrefs: no
+      register: silent 
+
+    - name: Configure deny value
+      become: true
+      lineinfile:
+        path: /etc/security/faillock.conf 
+        create: no
+        state: present
+        regexp: '^#deny(.*)$'
+        line: 'deny = 3'
+        backrefs: no
+      register: deny          
+
+    - name: Configure fail_interval value
+      become: true
+      lineinfile:
+        path: /etc/security/faillock.conf 
+        create: no
+        state: present
+        regexp: '^#fail_interval(.*)$'
+        line: 'fail_interval = 900'
+        backrefs: no
+      register: fail_interval
+
+    - name: Configure unlock_time value
+      become: true
+      lineinfile:
+        path: /etc/security/faillock.conf 
+        create: no
+        state: present
+        regexp: '^#unlock_time(.*)$'
+        line: 'unlock_time = 0'
+        backrefs: no
+      register: unlock_time
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: 
+        - authfail.failed == false
+        - authsucc.failed == false
+        - audit.failed == false
+        - silent.failed == false  
+        - deny.failed == false  
+        - fail_interval.failed == false  
+        - unlock_time.failed == false    
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+

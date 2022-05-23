@@ -1,0 +1,61 @@
+---
+
+- set_fact:
+    stig_id: V-238349
+    stig_text: 'FAILED. System library files are not own by root.'
+
+- local_action: lineinfile regexp='^V-238349' path="{{ output_path }}" state=absent
+
+- name: Ensure audit tools are own by root user.
+  block: 
+    - name: Verify the specified audit tools are exists.
+      become: true
+      stat:
+        path: "{{ item }}"
+      loop:
+        - /lib
+        - /usr/lib
+        - /lib64
+      register: audit_tools
+    
+    - name: Verify the system-wide shared library files contained in the directories are owned by root.
+      loop: |
+        {{ audit_tools.results | map(attribute='item')
+        | zip(audit_tools.results | map(attribute='stat.pw_name'))
+        | list }}
+
+      assert:
+        that: item.1 == 'root'
+      loop_control:
+        label: "{{ item.0 }}"
+
+    - set_fact:
+        stig_text: "PASSED"
+    
+  rescue:
+
+    - name: Configure the system library files to be protected from unauthorized access.
+      become: true
+      file:
+        path: "{{ item.item }}"
+        owner: root
+        state: "{{ 'file' if item.stat.exists else 'touch' }}"
+      loop: "{{ audit_tools.results }}"
+      register: file_perms_rule 
+  
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_perms_rule.changed
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+
+
+
+
+
+
+

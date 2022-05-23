@@ -1,0 +1,53 @@
+---
+
+- set_fact:
+    stig_id: V-238296
+    stig_text: "FAILED. Ubuntu does not generate audit records for successful/unsuccessful uses of the finit_module syscall."
+    target_file: /etc/audit/rules.d/stig.rules
+
+- local_action: lineinfile regexp='^V-238296' path="{{ output_path }}" state=absent
+
+- name: Check for stig.rules config file existence
+  block: 
+    - name: check for the file
+      stat:
+        path: "{{ target_file }}"
+      register: rules_file
+
+    - name: check for 64-bit audit rules
+      shell: auditctl -l | grep -i 'finit_module'
+      register: audit_check_64bit
+      failed_when: audit_check_64bit.rc != 0
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+    - name: add/update "finit_module auid>=1000" 64-bit rules to stig.rules file.
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^(.*)arch=b64.*finit_module.*auid>=1000(.*)$'
+        line: -a always,exit -F arch=b64 -S finit_module -F auid>=1000 -F auid!=-1 -k module_chng  
+        state: present
+        create: yes
+        owner: root
+        group: root
+        mode: 0640 
+      register: file_updated_auid1000
+
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_updated_auid1000.failed == false
+
+    - name: reload the rules file
+      shell: augenrules --load
+      register: reload_rules
+      ignore_errors: yes
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+

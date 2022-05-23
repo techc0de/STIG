@@ -1,0 +1,49 @@
+---
+
+- set_fact:
+    stig_id: V-238233
+    stig_text: "FAILED. Ubuntu does not implement a local cache of revocation data in case of the inability to access revocation information via the network."
+    target_file: /etc/pam_pkcs11/pam_pkcs11.conf
+
+- local_action: lineinfile regexp='^V-238233' path="{{ output_path }}" state=absent
+
+- name: Check for pam_pkcs11 config file existence
+  block: 
+    - name: check for the file
+      stat:
+        path: "{{ target_file }}"
+      register: rules_file
+
+    - name: check for OCSP policy
+      shell: grep cert_policy "{{ target_file }}" | grep -E -- 'crl_auto|crl_offline'
+      register: audit_check
+      failed_when: audit_check.stdout_lines != 'crl_auto' or audit_check.stdout_lines != 'crl_offline'
+
+    - fail:
+        msg: "FAILED. {{ target_file }} file does not exist."
+      when: rules_file.stat.exists == False
+
+  rescue:
+ 
+    - name: Configure the Ubuntu operating system, for PKI-based authentication, to use local revocation data when unable to access the network to obtain it remotely.
+      lineinfile:
+        path: "{{ target_file }}"
+        owner: root
+        group: root
+        mode: 0600
+        state: present
+        create: no
+        regexp: '^#*\s*cert_policy = .*$'
+        line: 'cert_policy = ca,signature,ocsp_on, crl_auto;'
+      register: file_updated
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_updated.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+

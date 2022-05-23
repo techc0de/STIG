@@ -1,0 +1,79 @@
+---
+
+- set_fact:
+    stig_id: V-238248
+    stig_text: 'FAILED. Audit log files can be read or write-accessible by unauthorized users.'
+    target_file: /etc/audit/auditd.conf
+    default_log_file_path: /var/log/audit/audit.log
+
+- local_action: lineinfile regexp='^V-238248' path="{{ output_path }}" state=absent
+
+- name: verify that the "{{ target_file }}" file is exist.
+  block: 
+
+    - name: check for files
+      become: true
+      stat:
+        path: "{{ target_file }}"
+      register: audit_files
+
+    - name: check for audit logs path
+      become: true
+      shell: grep -iw log_file "{{ target_file }}" | awk '{print $3}' | cut -d '"' -f 2
+      register: log_file_path
+      failed_when: log_file_path.stdout != default_log_file_path
+
+    - set_fact:
+        log_file_path: /var/log/audit/
+
+    - name: check if audit log directory has 750 mode or less permissive
+      stat:
+        path: "{{ item }}"
+      with_items:
+        - /var/log/audit/
+        - /var/log/audit/*
+      register: st
+      failed_when: st.stat.mode > '0750'
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: create '/etc/audit/rules.d' if it doesn't exist and change ownership to root.
+      become: true
+      file:
+        path: "/etc/audit/rules.d"
+        owner: root
+        group: root
+        mode: 0600
+        state: directory
+      register: dir_perms_rule 
+
+    - name: add log_file path to audit config file
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^#*\s*log_file\s.*'
+        line: log_file = "{{ default_log_file_path }}"
+        create: true
+        owner: root
+        group: root
+        mode: 750
+     
+    - name: change the files permission mode to 750.
+      become: true
+      shell: "chmod -R 0750 {{ log_file_path }}" 
+      register: file_perms_rule 
+  
+    - set_fact:
+        stig_text: "PASSED"
+      when: 
+        - file_perms_rule.changed == true
+        - dir_perms_rule.changed == true
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

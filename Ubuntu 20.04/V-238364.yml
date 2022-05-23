@@ -1,0 +1,65 @@
+---
+
+- set_fact:
+    stig_id: V-238364
+    stig_text: "FAILED. Ubuntu doesn't have a DoD PKI certifcate installed."
+
+- local_action: lineinfile regexp='^V-238364' path="{{ output_path }}" state=absent
+
+- name: Verify the Ubuntu operating system has a DoD cert installed.
+  block: 
+
+    - shell: for f in $(ls /etc/ssl/certs); do openssl x509 -sha256 -in $f -noout -fingerprint | cut -d= -f2 | tr -d ':' | egrep -vw '(9676F287356C89A12683D65234098CB77C4F1C18F23C0E541DE0E196725B7EBE|B107B33F453E5510F68E513110C6F6944BACC263DF0137F821C1B3C2F8F863D2|559A5189452B13F8233F0022363C06F26E3C517C1D4B77445035959DF3244F74|1F4EDE9DC2A241F6521BF518424ACD49EBE84420E69DAF5BAC57AF1F8EE294A9)'; done
+      register: cert_check
+      failed_when: cert_check.stdout|length > 0
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: Configure the Ubuntu operating system to only allow the use of DoD PKI-established certificate authorities for verification of the establishment of protected sessions.
+      become: true
+      shell: sed -i -E 's/^([^!#]+)/!\1/g' /etc/ca-certificates.conf
+      register: configure
+
+    - name: download a DoD PKI Cert
+      get_url:
+        url: https://dl.dod.cyber.mil/wp-content/uploads/pki-pke/zip/certificates_pkcs7_DoD.zip --no-check-certificate
+        dest: /tmp/certificates_pkcs7.zip
+        mode: 755
+      register: download
+
+    - name: unzip downloaded file
+      unarchive:
+        src: /tmp/certificates_pkcs7.zip
+        dest: /tmp/   
+        remote_src: yes
+
+    - name: convert cert to .pem and copy to /usr/local/share/ca-certificates  
+      shell: |
+        cd /tmp/
+        cd *Certificates_PKCS7*
+        openssl pkcs7 -in Certificates_PKCS7_v5.8_DoD.pem.p7b -print_certs -out DoD_CAs.pem
+        cp DoD_*.pem /usr/local/share/ca-certificates/
+      register: copy_cert
+
+    - name: update ca cert
+      shell: |
+        cd /etc/ssl/certs
+        update-ca-certificates
+      register: update_cert
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: 
+        - download.changed == true
+        - copy_cert.changed == true
+        - update_cert.changed == true
+        
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

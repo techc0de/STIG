@@ -1,0 +1,59 @@
+---
+
+- set_fact:
+    stig_id: V-238212
+    stig_text: "FAILED. Ubuntu does not immediately terminate all network connections associated with SSH traffic after a period of inactivity."
+    target_file: /etc/ssh/sshd_config
+
+- local_action: lineinfile regexp='^V-238212' path="{{ output_path }}" state=absent
+
+- name: check for sshd_config file existence
+  block: 
+    - name: check for the file
+      stat:
+        path: "{{ target_file }}"
+      register: rules_file
+
+    - fail:
+        msg: "FAILED. {{ target_file }} file does not exist."
+      when: rules_file.stat.exists == False
+
+    - name: check for PAM rule
+      shell: grep -i '^clientalivecountmax 1 "{{ target_file }}"
+      register: audit_check
+      failed_when: audit_check.rc != 0
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+    - name: remove any existing SSH sessions rules from the file.      
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^(.*)ClientAliveCountMax(.*)$'
+        state: absent
+        create: yes
+        backup: yes
+
+    - name: Configure the Ubuntu operating system to automatically terminate inactive SSH sessions after a period of inactivity.
+      lineinfile:
+        path: "{{ target_file }}"
+        line: ClientAliveCountMax 1      
+        state: present
+        create: no
+      register: file_updated
+
+    - name: restart SSH dameon
+      service:
+        name: sshd
+        state: restarted
+          
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_updated.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

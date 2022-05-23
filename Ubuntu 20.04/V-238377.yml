@@ -1,0 +1,58 @@
+---
+
+- set_fact:
+    stig_id: V-238377
+    stig_text: 'FAILED. System commands are not owned by root.'
+
+- local_action: lineinfile regexp='^V-238377' path="{{ output_path }}" state=absent
+
+- name: verify that the "{{ target_file }}" file is exist.
+  block: 
+
+    - name: verify the target files
+      become: true
+      stat:
+        path: "{{ item }}"
+      loop:
+        - /bin
+        - /sbin
+        - /usr/bin
+        - /usr/sbin
+        - /usr/local/bin
+        - /usr/local/sbin
+      register: files
+
+    - name: Verify the following files have a ownership of root.
+      loop: |
+        {{ files.results | map(attribute='item')
+        | zip(files.results | map(attribute='stat.pw_name'))
+        | list }}
+
+      assert:
+        that: item.1 == 'root'
+      loop_control:
+        label: "{{ item.0 }}"
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: change the files ownership to 'root'.
+      become: true
+      file:
+        path: "{{ item.item }}"
+        owner: root
+        state: "{{ 'file' if item.stat.exists else 'touch' }}"
+      loop: "{{ files.results }}"
+      register: file_perms_rule 
+  
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_perms_rule.changed == true
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

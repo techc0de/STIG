@@ -1,0 +1,66 @@
+---
+
+- set_fact:
+    stig_id: V-238301
+    stig_text: 'FAILED. Audit tools are write-accessible by unauthorized users.'
+
+- local_action: lineinfile regexp='^V-238301' path="{{ output_path }}" state=absent
+
+- name: Ensure audit tools are own by root user.
+  block: 
+    - name: check if audit tools are own by root user.
+      become: true
+      stat:
+        path: "/sbin/{{ audit_loop }}"
+      loop:
+        - auditctl
+        - aureport
+        - ausearch
+        - autrace
+        - auditd
+        - audispd
+        - augenrules
+      loop_control:
+        loop_var: audit_loop
+      register: audit_tools
+      failed_when: audit_tools.stat.pw_name != 'root'
+    
+  
+    - name: ensure all audit tools are exists
+      assert:
+        that:
+          - audit_tools.results | map(attribute='stat.exists') is all
+        fail_msg: One or more audit tools isn't exist.
+        success_msg: Passed
+
+    - set_fact:
+        stig_text: "PASSED"
+    
+
+  rescue:
+
+    - name: change the target files ownership to root.
+      become: true
+      file:
+        path: "/sbin/{{ item.audit_loop }}"
+        owner: root
+        state: "{{ 'file' if item.stat.exists else 'touch' }}"
+      loop: "{{ audit_tools.results }}"
+      register: file_perms_rule 
+  
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_perms_rule.changed
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+
+
+
+
+
+
+

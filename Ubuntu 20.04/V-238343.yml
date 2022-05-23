@@ -1,0 +1,53 @@
+---
+
+- set_fact:
+    stig_id: V-238343
+    stig_text: "FAILED. The syslog file don't have with mode 0640 or less permissive."
+
+- local_action: lineinfile regexp='^V-238343' path="{{ output_path }}" state=absent
+
+- name: verify that the "{{ target_file }}" file is exist.
+  block: 
+
+    - name: verify the target files
+      become: true
+      stat:
+        path: "{{ item }}"
+      loop: 
+        - /var/log/syslog
+      register: files
+
+    - name: Verify the following files have a mode of 0640 or less permissive
+      loop: |
+        {{ files.results | map(attribute='item')
+        | zip(files.results | map(attribute='stat.mode'))
+        | list }}
+
+      assert:
+        that: item.1 <= '0640'
+      loop_control:
+        label: "{{ item.0 }}"
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: change the "{{ item }}" permission mode to 640.
+      become: true
+      file:
+        path: "{{ item.item }}"
+        mode: 0640
+        state: "{{ 'file' if item.stat.exists else 'touch' }}"
+      loop: "{{ files.results }}"
+      register: file_perms_rule 
+  
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_perms_rule.changed == true
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

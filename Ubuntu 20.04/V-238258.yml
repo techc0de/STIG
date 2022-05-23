@@ -1,0 +1,74 @@
+---
+
+- set_fact:
+    stig_id: V-238258
+    stig_text: "FAILED. Ubuntu does not generate audit records for any usage of the setxattr, fsetxattr, lsetxattr, removexattr, fremovexattr, and lremovexattr system calls."
+    target_file: /etc/audit/rules.d/stig.rules
+
+- local_action: lineinfile regexp='^V-238258' path="{{ output_path }}" state=absent
+
+- name: check for stig.rules file existence
+  block: 
+    - name: check for the file
+      stat:
+        path: "{{ target_file }}"
+      register: rules_file
+
+    - fail:
+        msg: "FAILED. {{ target_file }} file does not exist."
+      when: rules_file.stat.exists == False
+
+    - name: check for 64-bit audit rules
+      shell: auditctl -l | grep -i 'xattr'
+      register: audit_check
+      failed_when: audit_check_64bit.rc != 0
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+  
+    - name: add/update "xattr auid>=1000" 64-bit rules to stig.rules file.
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^(.*)arch=b64.*setxattr(.*)$'
+        line: |
+          -a always,exit -F arch=b64 -S setxattr,fsetxattr,lsetxattr,removexattr,fremovexattr,lremovexattr -F auid>=1000 -F auid!=4294967295 -k perm_mod
+          -a always,exit -F arch=b64 -S setxattr,fsetxattr,lsetxattr,removexattr,fremovexattr,lremovexattr -F auid=0 -k perm_mod
+        state: present
+        create: yes
+        owner: root
+        group: root
+        mode: 0640 
+      register: file_updated_64
+
+
+    - name: add/update "xattr auid=0" 32-bit rules to stig.rules file.
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^(.*)arch=32.*setxattr(.*)$'
+        line: |
+          -a always,exit -F arch=b32 -S setxattr,fsetxattr,lsetxattr,removexattr,fremovexattr,lremovexattr -F auid>=1000 -F auid!=4294967295 -k perm_mod
+          -a always,exit -F arch=b32 -S setxattr,fsetxattr,lsetxattr,removexattr,fremovexattr,lremovexattr -F auid=0 -k perm_mod
+        state: present
+        create: yes
+        owner: root
+        group: root
+        mode: 0640 
+      register: file_updated_32
+  
+    - set_fact:
+        stig_text: "PASSED"
+      when: 
+        - file_updated_64.failed == false
+        - file_updated_32.failed == false
+        
+    - name: reload the rules file
+      shell: augenrules --load
+      register: reload_rules
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

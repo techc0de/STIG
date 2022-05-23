@@ -1,0 +1,35 @@
+---
+
+- set_fact:
+    stig_id: V-238329
+    stig_text: "FAILED. Ubuntu does not prevent direct login into the root account."
+
+- local_action: lineinfile regexp='^V-238329' path="{{ output_path }}" state=absent
+
+- name: Check for stig.rules config file existence
+  block: 
+   
+    - name: check for root direct access
+      shell: passwd -S root | grep 'L'
+      register: audit_check
+      failed_when: audit_check.rc != 0
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+  
+    - name: Configure the Ubuntu operating system to prevent direct logins to the root account.
+      shell: passwd -l root
+      register: file_updated
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_updated.rc == 0
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+

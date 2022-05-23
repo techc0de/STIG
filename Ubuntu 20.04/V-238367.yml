@@ -1,0 +1,37 @@
+---
+
+- set_fact:
+    stig_id: V-238367
+    stig_text: "FAILED. UFW not configured to rate limit traffic."
+
+- local_action: lineinfile regexp='^V-238367' path="{{ output_path }}" state=absent
+
+- name: check if UFW rate limits SSH
+  block:
+  
+    - shell: ufw status numbered | grep -i '22/tcp.*Limit
+      become: true
+      register: ssh_limit_rules_check
+      failed_when: ssh_limit_rules_check.rc != 0
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: configure UFW to rate limit SSH service.
+      become: true
+      shell: ufw limit ssh/tcp
+      register: ufw_updated
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: ufw_updated.rc == 0
+
+    
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

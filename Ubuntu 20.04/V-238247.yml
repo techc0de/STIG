@@ -1,0 +1,69 @@
+---
+
+- set_fact:
+    stig_id: V-238247
+    stig_text: "FAILED. Audit log files are write-accessable by unathorized groups."
+    target_file: /etc/audit/auditd.conf
+
+- local_action: lineinfile regexp='^V-238247' path="{{ output_path }}" state=absent
+
+- name: Verify the group owner is set to own newly created audit logs in the audit configuration file
+  block: 
+    - name: check for the file
+      stat:
+        path: "{{ target_file }}"
+      register: rules_file
+
+    - fail:
+        msg: "FAILED. {{ target_file }} file does not exist."
+      when: rules_file.stat.exists == False
+
+    - name: check for audit logs path
+      shell: grep -iw log_file "{{ target_file }}"
+      register: log_file_check
+      failed_when: log_file_check.stdout != 'log_file = /var/log/audit/audit.log'
+      
+    - name: check for log group ownership
+      stat:
+        path: "{{ target_file }}"
+      register: group_check
+      failed_when: group_check.stat.gr_name != 'adm' or group_check.stat.gr_name != 'root'
+
+    - name: check for audit log files are owned by the root or adm group
+      stat:
+        path: /var/log/audit/*
+      register: st
+      failed_when: st.stat.gr_name != 'adm' or st.stat.gr_name != 'root'
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+    - name: change the file group ownership of "/var/log/audit" to root.
+      become: true
+      file:
+        path: "/var/log/audit"
+        group: adm
+        mode: 0640           
+        recurse: no
+      register: file_perms_conf
+
+    - name: Set the "log_group" parameter of the audit configuration file to the "adm" value so that when a new log file is created
+      become: true
+      shell: |
+        sed -i '/^log_group/D' "{{ target_file }}"
+        sed -i /^log_file/a'log_group = adm' "{{ target_file }}"
+        systemctl kill auditd -s SIGHUP
+      register: sed
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: 
+        - file_perms_conf.changed == true
+        - sed.changed == true
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

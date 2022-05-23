@@ -1,0 +1,38 @@
+---
+
+- set_fact:
+    stig_id: V-251506
+    stig_text: 'FAILED. The Ubuntu operating system must not have accounts configured with blank or null passwords.'
+    target_file: /etc/shadow
+
+- local_action: lineinfile regexp='^V-251506' path="{{ output_path }}" state=absent
+
+- name: Check the "/etc/shadow" file for blank passwords
+  block: 
+
+    - shell: |
+        awk -F: '!$2 {print $1}' "{{ target_file }}"
+      register: verify
+      failed_when: verify.rc == 0 
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: lock affected accounts
+      become: true
+      shell: "passwd -l {{ item.stdout }}"
+      loop: "{{ verify.results }}"
+      register: lock_accounts
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: lock_accounts.changed == true
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

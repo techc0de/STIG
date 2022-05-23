@@ -1,0 +1,56 @@
+---
+
+- set_fact:
+    stig_id: V-219156
+    stig_text: "FAILED. Ubuntu does not configured so that APT removes all software components after updated versions have been installed."
+    target_file: /etc/apt/apt.conf.d/50unattended-upgrades
+
+- local_action: lineinfile regexp='^V-219156' path="{{ output_path }}" state=absent
+
+- name: check for stig.rules file existence
+  block: 
+    - name: check for the file
+      stat:
+        path: "{{ target_file }}"
+      register: rules_file
+
+    - fail:
+        msg: "FAILED. {{ target_file }} file does not exist."
+      when: rules_file.stat.exists == False
+
+    - name: check for audit rules
+      shell: grep -i remove-unused "{{ target_file }}" | grep -v 'true'
+      register: audit_check
+      failed_when: audit_check.rc == 0 or audit_check.stdout_lines.find(#) != -1
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+    - name: remove any existing auto upgrade rules from the file.      
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^(.*)Unattended-Upgrade(.*)$'
+        state: absent
+        create: yes
+        backup: yes
+
+    - name: Configure APT to remove all software components after updated versions have been installed.
+      lineinfile:
+        path: "{{ target_file }}"
+        line: |
+          Unattended-Upgrade::Remove-Unused-Dependencies "true";
+          Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
+        state: present
+        create: yes 
+      register: file_updated
+  
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_updated.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

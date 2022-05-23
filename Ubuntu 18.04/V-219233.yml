@@ -1,0 +1,59 @@
+---
+
+- set_fact:
+    stig_id: V-219233
+    stig_text: "FAILED. Audit configuration file is write-accessable by unathorized groups."
+    target_file: /etc/audit/auditd.conf
+
+- local_action: lineinfile regexp='^V-219233' path="{{ output_path }}" state=absent
+
+- name: check for audit config file existence.
+  block: 
+    - name: check for the file
+      stat:
+        path: "{{ target_file }}"
+      register: rules_file
+
+    - fail:
+        msg: "FAILED. {{ target_file }} file does not exist."
+      when: rules_file.stat.exists == False
+
+    - name: check for audit logs path
+      shell: grep -iw log_file /etc/audit/auditd.conf | awk '{print $3}'
+      register: log_file_check
+      failed_when: log_file_check.stdout != '/var/log/audit/audit.log'
+      
+    - name: check for log group ownership
+      shell: stat -c "%n %G" "{{ log_file_check }}" | awk '{print $2}'
+      register: group_check
+      failed_when: group_check.stdout != 'root'
+
+
+    - set_fact:
+        stig_text: "PASSED"
+      when:
+        - log_file_check.stdout == '/var/log/audit/audit.log'
+        - group_check.stdout == 'root'
+
+  rescue:
+    - name: change the file group ownership of "/var/log/audit" to root.
+      become: true
+      file:
+        path: "/var/log/audit"
+        group: root
+        mode: 0640
+        state: directory           
+        recurse: yes
+      register: file_perms_conf
+
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_perms_conf.changed == true
+
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

@@ -1,0 +1,99 @@
+---
+
+- set_fact:
+    stig_id: V-219247
+    stig_text: "FAILED. Ubuntu does not generate audit records for any usage of the removexattr system call."
+    target_file: /etc/audit/rules.d/stig.rules
+
+- local_action: lineinfile regexp='^V-219276' path="{{ output_path }}" state=absent
+
+- name: Check for stig.rules config file existence
+  block: 
+    - name: check for the file
+      stat:
+        path: "{{ target_file }}"
+      register: rules_file
+
+    - name: check for 64-bit audit rules
+      shell: auditctl -l | grep -i 'arch=b64 -S removexattr'
+      register: audit_check
+      failed_when: audit_check_64bit.rc != 0
+
+    - name: check for 32-bit audit rules
+      shell: auditctl -l | grep -i 'arch=b32 -S removexattr'
+      register: audit_check
+      failed_when: audit_check_32bit.rc != 0
+
+    - fail:
+        msg: "FAILED. {{ target_file }} file does not exist."
+      when: rules_file.stat.exists == False
+
+  rescue:
+  
+    - name: add/update "removexattr auid>=1000" 64-bit rules to stig.rules file.
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^(.*)arch=b64.*removexattr.*auid>=1000(.*)$'
+        line: -a always,exit -F arch=b64 -S removexattr -F auid>=1000 -F auid!=-1 -k perm_mod  
+        state: present
+        create: yes
+        owner: root
+        group: root
+        mode: 0640 
+      register: file_updated_auid_1000
+
+
+    - name: add/update "removexattr auid=0" 64-bit rules to stig.rules file.
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^(.*)arch=b64.*removexattr.*auid=0(.*)$'
+        line: -a always,exit -F arch=b64 -S removexattr -F auid=0 -k perm_mod    
+        state: present
+        create: yes
+        owner: root
+        group: root
+        mode: 0640 
+      register: file_updated_auid_0
+
+    - name: add/update "removexattr auid>=1000" 32-bit rules to stig.rules file.
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^(.*)arch=b32.*removexattr.*auid>=1000(.*)$'
+        line: -a always,exit -F arch=b32 -S removexattr -F auid>=1000 -F auid!=-1 -k perm_mod   
+        state: present
+        create: yes
+        owner: root
+        group: root
+        mode: 0640 
+      register: file_updated_auid_1000_32_bit
+
+    - name: add/update "removexattr auid=0" 32-bit rules to stig.rules file.
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^(.*)arch=b32.*removexattr.*auid=0(.*)$'
+        line: -a always,exit -F arch=b32 -S removexattr -F auid=0 -k perm_mod      
+        state: present
+        create: yes
+        owner: root
+        group: root
+        mode: 0640 
+      register: file_updated_auid_0_32bit      
+      
+    - set_fact:
+        stig_text: "PASSED"
+      when: 
+        - file_updated_auid_1000.failed == false
+        - file_updated_auid_0.failed == false
+        - file_updated_auid_1000_32_bit.failed == false
+        - file_updated_auid_0_32bit.failed == false
+
+    - name: reload the rules file
+      shell: augenrules --load
+      register: reload_rules
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+

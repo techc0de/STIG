@@ -1,0 +1,39 @@
+---
+
+- set_fact:
+    stig_id: V-219161
+    stig_text: "FAILED. Firewall isn't installed."
+
+- local_action: lineinfile regexp='^V-219161' path="{{ output_path }}" state=absent
+
+- name: Verify that the Uncomplicated Firewall is installed.
+  block: 
+
+    - shell: dpkg -l | grep ufw
+      register: ufw_check
+      failed_when: ufw_check.stdout.find('ii  ufw') == -1
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: install firewall
+      become: true
+      apt:
+        name: ufw
+        state: present
+        update_cache: yes
+        cache_valid_time: 3600
+      register: install_package
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: install_package.failed == false  
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

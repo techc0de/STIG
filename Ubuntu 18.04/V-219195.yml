@@ -1,0 +1,65 @@
+---
+
+- set_fact:
+    stig_id: V-219195
+    stig_text: "FAILED. Audit tools aren't configured with mode of 0755 or less permissive."
+
+- local_action: lineinfile regexp='^V-219195' path="{{ output_path }}" state=absent
+
+- name: Ensure audit tools have 0755 permissions.
+  block: 
+    - name: Verify the specified audit tools are exists.
+      become: true
+      stat:
+        path: "/sbin/{{ item }}"
+      loop:
+        - auditctl
+        - aureport
+        - ausearch
+        - autrace
+        - auditd
+        - audispd
+        - augenrules
+      register: audit_tools
+      
+    - name: Verify the permissions of audit tools have 0755 octal digits.
+      loop: |
+        {{ audit_tools.results | map(attribute='item')
+        | zip(audit_tools.results | map(attribute='stat.mode'))
+        | list }}
+
+      assert:
+        that: item.1 == '0755'
+      loop_control:
+        label: "{{ item.0 }}"
+    
+    - set_fact:
+        stig_text: "PASSED"
+    
+  rescue:
+
+    - name: change the audit tools' permissions to 0755 and create audit tool if it doesn't exist.
+      become: true
+      file:
+        path: "/sbin/{{ item.item }}"
+        mode: 0755
+        state: "{{ 'file' if item.stat.exists else 'touch' }}"
+      loop: "{{ audit_tools.results }}"
+      register: file_perms_rule 
+  
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_perms_rule.changed
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+
+
+
+
+
+
+

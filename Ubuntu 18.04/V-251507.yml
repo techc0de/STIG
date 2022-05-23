@@ -1,0 +1,39 @@
+---
+
+- set_fact:
+    stig_id: V-251507
+    stig_text: 'FAILED. The Ubuntu operating system must not allow accounts configured with blank or null passwords.'
+    target_file: /etc/pam.d/common_password
+
+- local_action: lineinfile regexp='^V-251507' path="{{ output_path }}" state=absent
+
+- name: verify that null passwords cannot be used
+  block: 
+
+    - shell: grep nullok {{ target_file }}
+      register: verify
+      failed_when: verify.rc == 0 
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: remove nullok option
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^(nullok|nullok_secure)$'
+        state: absent
+      register: remove_nullok
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: remove_nullok.changed == true
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

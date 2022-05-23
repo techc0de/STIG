@@ -1,0 +1,51 @@
+---
+
+- set_fact:
+    stig_id: V-219308
+    target_file: /etc/ssh/sshd_config
+    stig_text: "FAILED. O.S. is not enforcing SSH2 for network access."
+
+- local_action: lineinfile regexp='^V-219308' path="{{ output_path }}" state=absent
+
+- name: verify the OS enforces SSH protocol 2 for network access.
+  block:
+
+    - stat:
+        path: "{{ target_file }}"
+      register: ssh_file
+      failed_when: ssh_file.stat.exists == False
+
+    - shell: grep 'Protocol 2' "{{ target_file }}"
+      register: shell_check
+      failed_when: shell_check.rc != 0
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: configure OS to enforce SSHv2 for all network access 
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        line: Protocol 2
+        regexp: '^#*\s*Protocol.*'
+        state: present
+      register: update_sshd
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: update_sshd.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+    - name: restart sshd.service
+      become: true
+      service:
+        name: sshd
+        state: restarted
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

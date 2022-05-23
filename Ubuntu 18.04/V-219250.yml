@@ -1,0 +1,70 @@
+---
+
+- set_fact:
+    stig_id: V-219250
+    stig_text: "FAILED. Ubuntu does not generate audit records for successful/unsuccessful uses of the chown, fchown, fchownat, and lchown system call."
+    target_file: /etc/audit/rules.d/stig.rules
+
+- local_action: lineinfile regexp='^V-219250' path="{{ output_path }}" state=absent
+
+- name: Check for stig.rules config file existence
+  block: 
+    - name: check for the file
+      stat:
+        path: "{{ target_file }}"
+      register: rules_file
+
+    - name: check for audit rules
+      shell: auditctl -l | grep chown
+      register: audit_check
+      failed_when: audit_check.rc != 0
+
+    - fail:
+        msg: "FAILED. {{ target_file }} file does not exist."
+      when: rules_file.stat.exists == False
+
+    - set_fact:
+        stig_text: "PASSED"  
+
+  rescue:
+ 
+    - name: add/update "chown auid>=1000" 64-bit rules to stig.rules file.
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^(.*)arch=b64.*chown.*auid>=1000(.*)$'
+        line: -a always,exit -F arch=b64 -S chown,fchown,fchownat,lchown -F auid>=1000 -F auid!=4294967295 -k perm_chng   
+        state: present
+        create: yes
+        owner: root
+        group: root
+        mode: 0640 
+      register: file_updated_auid1000
+
+    - name: add/update "chown auid>=1000" 32-bit rules to stig.rules file.
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^(.*)arch=b32.*chown.*auid>=1000(.*)$'
+        line: -a always,exit -F arch=b32 -S chown,fchown,fchownat,lchown -F auid>=1000 -F auid!=4294967295 -k perm_chng 
+        state: present
+        create: yes
+        owner: root
+        group: root
+        mode: 0640 
+      register: file_updated_auid1000_32bit      
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: 
+        - file_updated_auid1000.failed == false
+        - file_updated_auid1000_32bit.failed == false
+
+    - name: reload the rules file
+      shell: augenrules --load
+      register: reload_rules
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+

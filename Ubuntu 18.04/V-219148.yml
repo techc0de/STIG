@@ -1,0 +1,92 @@
+---
+
+- set_fact:
+    stig_id: V-219148
+    stig_text: "FAILED. Ubuntu does not require authentication upon booting into single-user mode and maintenance."
+    target_file: /boot/efi/EFI/grub.cfg
+
+- local_action: lineinfile regexp='^V-219148' path="{{ output_path }}" state=absent
+
+- name: Check for stig.rules config file existence
+  block: 
+    - name: check for Grub EFI file
+      stat:
+        path: "{{ target_file }}"
+      register: rules_file
+
+    - name: check if password is set
+      shell: "grep -i '^password.*root.*grub.*' {{ target_file }}"
+      register: audit_check
+      failed_when: grub_entry.rc == 2 or grub_entry.rc == 3
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: confiure the system to require a password for authentication upon booting into single-user and maintenance mode
+      shell: >
+        printf "{{ grub_passwd }}\n{{ grub_passwd }}" | 
+        grub-mkpasswd-pbkdf2 |
+        awk '/grub.pbkdf/{print$NF}'
+      register: grub_pass
+
+    - command: /bin/false
+      when: grub_pass.rc != 0
+
+    - name: add grub password to custom config file
+      become: true
+      lineinfile:
+        path: /etc/grub.d/10_linux
+        line: |
+          cat << EOF
+          set superusers="root" 
+          password_pbkdf2 root {{ grub_pass.stdout }}
+          EOF
+        create: true
+      register: grub_cfg
+
+    - command: /bin/false
+      when: grub_cfg.failed != false
+
+    - name: update grub config
+      become: true
+      command: update-grub
+      register: grub_update
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: grub_update.rc == 0
+
+  always:
+
+    - shell: egrep -i ^CLASS.* /etc/grub.d/10_linux | grep unrestricted
+      register: unrestricted
+      failed_when: unrestricted.rc == 2 or unrestricted.rc == 3
+
+    - name: unrestrict default boot options
+      become: true
+      lineinfile:
+        path: /etc/grub.d/10_linux
+        regexp: '^CLASS\=\"(.*)\"$'
+        line: 'CLASS="\1 --unrestricted"'
+        backrefs: yes
+      when: unrestricted.rc == 1
+
+    - name: update grub config
+      become: true
+      command: update-grub
+      when: unrestricted.rc == 1
+
+  rescue:
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED. virtual container does not use the efi boot loader."
+      when: ansible_virtualization_role == 'guest' or booted_with_efi == false
+
+    - debug:
+        var: stig_text
+
+  always:
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes
+

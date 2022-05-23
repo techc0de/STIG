@@ -1,0 +1,58 @@
+---
+
+- set_fact:
+    stig_id: V-219188
+    stig_text: 'FAILED. System log files do not have the permission set to 640.'
+    target_file: /var/log
+    
+- local_action: lineinfile regexp='^V-219188' path="{{ output_path }}" state=absent
+
+- name: verify that the "{{ target_file }}" file is exist.
+  block: 
+
+    - name: check for files
+      become: true
+      stat:
+        path: "{{ target_file }}"
+      register: audit_files
+
+  
+    - name: check if audit logs have 640 mode or less permissive
+      shell: find /var/log -perm /137 -type f -exec stat -c "%n %a" {} \;
+      register: file_perm
+      failed_when: file_perm.rc == 0     
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+     
+    - name: configure the all log files under /var/log/ dir permission mode to 640.
+      become: true
+      shell: find "{{ target_file }}" -perm /137 -type f -exec chmod 640 '{}' \;
+      register: file_perms_rule 
+
+    - name: set permanent permissions mode of 0640 in 00rsyslog.conf.
+      become: true
+      lineinfile:
+        path: /usr/lib/tmpfiles.d/00rsyslog.conf
+        insertafter: 'd /var/spool/rsyslog .*'
+        line: |
+          z /var/log/btmp 640 root utmp -
+          z /var/log/lastlog 640 root utmp -
+          z /var/log/wtmp 640 root utmp -
+        state: present  
+        backrefs: yes
+      register: 00rsyslog.conf      
+  
+    - set_fact:
+        stig_text: "PASSED"
+      when: 
+        - file_perms_rule.changed == true
+        - 00rsyslog.conf.changed == true
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

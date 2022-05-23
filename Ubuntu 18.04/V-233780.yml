@@ -1,0 +1,47 @@
+---
+
+- set_fact:
+    stig_id: V-233780
+    stig_text: "FAILED. Ubuntu failed to prevent remote hosts from connecting to the proxy display."
+    target_file: /etc/ssh/sshd_config
+
+- local_action: lineinfile regexp='^V-233780' path="{{ output_path }}" state=absent
+
+- name: Verify the SSH daemon prevents remote hosts from connecting to the proxy display.
+  block: 
+
+    - name: Check the SSH X11UseLocalhost setting. 
+      shell: "grep -i 'X11UseLocalhost yes' {{ target_file }}"
+      register: audit_check
+      failed_when: audit_check.rc != 0 or audit_check.stdout.find('#') != -1
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: Configure the SSH daemon to prevent remote hosts from connecting to the proxy display.
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^(.*)X11UseLocalhost(.*)$'
+        line: X11UseLocalhost yes
+        state: present
+        create: yes
+        owner: root
+        group: root
+        mode: 0644
+      register: update_rule
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: update_rule.failed == false 
+  
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+
+
+

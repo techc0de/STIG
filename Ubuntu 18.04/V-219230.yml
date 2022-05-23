@@ -1,0 +1,88 @@
+---
+
+- set_fact:
+    stig_id: V-219230
+    stig_text: 'FAILED. Audit log files are not owned by authorized groups.'
+    target_file: /etc/audit/auditd.conf
+    default_log_file_path: /var/log/audit/audit.log
+
+- local_action: lineinfile regexp='^V-219230' path="{{ output_path }}" state=absent
+
+- name: verify that the "{{ target_file }}" file is exist.
+  block: 
+
+    - name: check for files
+      become: true
+      stat:
+        path: "{{ target_file }}"
+      register: audit_files
+
+    - name: check for audit logs path
+      become: true
+      shell: grep -iw log_file "{{ target_file }}" | awk '{print $3}' | cut -d '"' -f 2
+      register: log_file_path
+      failed_when: log_file_path.stdout != default_log_file_path
+
+    - set_fact:
+        log_file_path: /var/log/audit/*
+
+    - name: check if audit logs are owned by the root group.
+      become: true
+      find:
+        path: "{{ log_file_path }}"
+        file_type: file
+      register: file_perm
+
+    - set_fact: 
+        logs: "{{ file_perm.files | map(attribute='path') | list }}"  
+      failed_when: logs != 'root'
+
+    - fail:
+        msg: "FAILED. {{ target_files }} file does not exist or directory permission is incorrect."
+      when: 
+        - audit_files.stat.exists == False
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: create '/etc/audit/rules.d' if it doesn't exist and change ownership to root.
+      become: true
+      file:
+        path: "/etc/audit/rules.d"
+        owner: root
+        group: root
+        mode: 0644
+        state: directory
+      register: dir_perms_rule 
+
+    - name: add log_file path to audit config file
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^#*\s*log_file\s.*'
+        line: log_file = "{{ default_log_file_path }}"
+        create: true
+        owner: root
+        group: root
+     
+    - name: configure the audit log files to be owned by root group user.
+      become: true
+      shell: chown :root /var/log/audit/*
+      register: file_perms_rule 
+  
+    - set_fact:
+        stig_text: "PASSED"
+      when: 
+        - file_perms_rule.changed == true
+        - dir_perms_rule.changed == true
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+
+
+

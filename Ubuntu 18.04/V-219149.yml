@@ -1,0 +1,55 @@
+---
+
+- set_fact:
+    stig_id: V-219149
+    stig_text: "FAILED. Ubuntu does not initiate session audits at system startup."
+    target_file: /boot/grub/grub.cfg
+
+- local_action: lineinfile regexp='^V-219149' path="{{ output_path }}" state=absent
+
+- name: Check for grub.cf file existence
+  block: 
+    - name: check for the file
+      stat:
+        path: "{{ target_file }}"
+      register: rules_file
+
+    - name: check for OCSP policy
+      shell: grep "^\s*linux" "{{ target_file }}" | egrep -w 'audit=1'
+      register: audit_check
+      failed_when: audit_check.rc != 0
+
+    - fail:
+        msg: "FAILED. {{ target_file }} file does not exist."
+      when: rules_file.stat.exists == False
+
+  rescue:
+ 
+    - name: Configure the Ubuntu operating system to produce audit records at system startup.
+      lineinfile:
+        path: /etc/default/grub
+        owner: root
+        group: root
+        mode: 0600
+        state: present
+        create: yes
+        regexp: '^GRUB_CMDLINE_LINUX=.*$'
+        line: GRUB_CMDLINE_LINUX="audit=1"
+      register: file_updated
+
+    - name: update grub file
+      shell: update-grub
+      register: update
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: 
+        - file_updated.failed == false
+        - update.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+

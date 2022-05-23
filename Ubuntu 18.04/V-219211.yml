@@ -1,0 +1,59 @@
+---
+
+- set_fact:
+    stig_id: V-219211
+    stig_text: "FAILED. The ctl-alt-del sequence is not disabled in gnome"
+
+- local_action: lineinfile regexp='^V-219211' path="{{ output_path }}" state=absent
+
+- name: verify that the os has a graphical interface.
+  block: 
+
+    - set_fact:
+        stig_text: "PASSED. Note: no graphical interface."
+      when: has_display == false
+
+    - command: /bin/false
+      when: has_display == false
+
+    - name: verify the OS is not configured to reboot the system when ctrl-alt-delete is pressed using gnome.
+      block:
+
+        - shell: grep "^logout=''$" /etc/dconf/db/local.d/*
+          register: shell_output
+          failed_when: shell_output.rc == 1
+
+        - command: /bin/false
+          when: shell_output.stdout.find('logout') == -1
+
+        - set_fact:
+            stig_text: "PASSED"
+
+      rescue:
+
+        - name: create local gnome db file
+          become: true
+          lineinfile:
+            path: /etc/dconf/db/local.d/00-disable-CAD
+            create: true
+            line: |
+              [org/gnome/settings-daemon/plugins/media-keys]
+              logout=''
+          register: disable_cad
+
+        - set_fact:
+            stig_text: "PASSED"
+          when: disable_cad.failed == false
+
+        - name: update conf
+          become: true
+          command: dconf update
+
+  rescue:
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

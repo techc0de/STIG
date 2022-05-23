@@ -1,0 +1,49 @@
+---
+
+- set_fact:
+    stig_id: V-219173
+    stig_text: "FAILED. Ubuntu does not enforce password complexity by requiring that at least one lower-case character be used."
+    target_file: /etc/security/pwquality.conf
+     
+- local_action: lineinfile regexp='^V-219173' path="{{ output_path }}" state=absent
+
+- name: Check for config file existence
+  block: 
+    - name: check for the file
+      stat:
+        path: "{{ target_file }}"
+      register: rules_file
+
+    - name: Verify the Ubuntu operating system enforces password complexity by requiring that at least one lower-case character be used.
+      shell:  grep -i "lcredit=-1" "{{ target_file }}"
+      register: audit_check
+      failed_when: audit_check.rc != 0
+
+    - fail:
+        msg: "FAILED. {{ target_file }} file does not exist."
+      when: rules_file.stat.exists == False
+
+  rescue:
+ 
+    - name: Configure the Ubuntu operating system to enforces password complexity by requiring that at least one lower-case character be used.
+      lineinfile:
+        path: "{{ target_file }}"
+        owner: root
+        group: root
+        mode: 0600
+        state: present
+        create: yes
+        regexp: '^(.*)lcredit(.*)$'
+        line: 'lcredit=-1'
+      register: file_updated
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_updated.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+

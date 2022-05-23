@@ -1,0 +1,44 @@
+---
+
+- set_fact:
+    stig_id: V-219234
+    stig_text: 'FAILED. Audit configuration files are write-accessible by unauthorized users'
+    target_files: 
+      - /etc/audit/audit.rules
+      - /etc/audit/auditd.conf
+      - /etc/audit/rules.d/*
+
+- local_action: lineinfile regexp='^V-219234' path="{{ output_path }}" state=absent
+
+- name: verify that the "{{ target_files }}" have mode "0640" or less permissive
+  block: 
+
+    - name: check if audit logs have 600 mode or less permissive
+      shell: find "{{ target_files }}" -type f \( ! -perm 0640 \)
+      register: file_perm
+      failed_when: file_perm.rc == 0   
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: configure the permissions of the "{{ target_files }}" to "0640".
+      become: true
+      file:
+        path: "{{ item }}"
+        mode: 0640
+        state: touch
+        with_items: "{{ file_perm.stdout }}"
+      register: file_perms_rule
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_perms_rule.changed == true and file_perms_conf == true
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

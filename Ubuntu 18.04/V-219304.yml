@@ -1,0 +1,39 @@
+---
+
+- set_fact:
+    stig_id: V-219304
+    stig_text: "FAILED. Ubuntu doesn't configured for users to directly initiate a session lock for all connection types."
+
+- local_action: lineinfile regexp='^V-219304' path="{{ output_path }}" state=absent
+
+- name: Verify the Ubuntu operating system has the 'vlock' package installed.
+  block: 
+
+    - shell: dpkg -l | grep -i 'ii  vlock'
+      register: pkg_check
+      failed_when: pkg_check.rc != 0
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: install the vlock package
+      become: true
+      apt:
+        name: vlock
+        state: present
+        update_cache: yes
+        cache_valid_time: 3600
+      register: install_package
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: install_package.failed == false
+        
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

@@ -1,0 +1,57 @@
+---
+
+- set_fact:
+    stig_id: V-219238
+    stig_text: "FAILED. Ubuntu does not generate audit records for successful/unsuccessful uses of the su command."
+    target_file: /etc/audit/rules.d/stig.rules
+
+- local_action: lineinfile regexp='^V-219238' path="{{ output_path }}" state=absent
+
+- name: check for stig.rules file existence
+  block: 
+    - name: check for the file
+      stat:
+        path: "{{ target_file }}"
+      register: rules_file
+
+    - fail:
+        msg: "FAILED. {{ target_file }} file does not exist."
+      when: rules_file.stat.exists == False
+
+    - name: check for audit rules
+      shell: auditctl -l | grep '/bin/su'
+      register: audit_check
+      failed_when: audit_check.rc != 0 or audit_check.stdout_lines.find(#) != -1
+
+    - assert:
+        that: audit_check_stdout_lines.find('-a always,exit -F path=/bin/su -F perm=x -F auid>=1000 -F auid!=-1 -k privileged-priv_change') != -1
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: Configure the Ubuntu operating system to generate audit records when successful/unsuccessful attempts to use the "su" command occur.
+      lineinfile:
+        path: "{{ target_file }}"
+        line: -a always,exit -F path=/bin/su -F perm=x -F auid>=1000 -F auid!=4294967295 -k privileged-priv_change     
+        state: present
+        create: yes
+        owner: root
+        group: root
+        mode: 0640 
+      register: file_updated
+
+    - name: reload the rules file
+      shell: augenrules --load
+      register: reload_rules
+  
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_updated.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

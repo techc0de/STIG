@@ -1,0 +1,57 @@
+---
+
+- set_fact:
+    stig_id: V-219323
+    stig_text: "FAILED. Ubuntu doesn't configured to use AppArmor "
+    
+- local_action: lineinfile regexp='^V-219323' path="{{ output_path }}" state=absent
+
+- name: Ensure AppArmor package is installed.
+  block: 
+
+    - name: check for AppArmor package
+      shell: dpkg -l | egrep '^ii  apparmor'
+      register: package_check
+      failed_when: package_check.rc != 0
+
+    - name: Check if apparmor is active
+      shell: systemctl is-active apparmor.service
+      register: service_status
+      failed_when: service_status.stdout != 'active' 
+
+    - name: Check if apparmor is enabled.
+      shell: systemctl is-enabled apparmor.service
+      register: enable_status
+      failed_when: enable_status.stdout != 'enabled' 
+    
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: Install apparmor if it isn't installed.    
+      become: true
+      apt:
+        name: apparmor
+        state: present
+      register: install_pkg
+
+    - name: start and enable apparmor service.
+      service:
+        name: apparmor
+        state: started
+        enabled: yes
+      register: start_service
+    
+    - set_fact:
+        stig_text: "PASSED"
+      when: install_pkg.failed == false or start_service.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+
+
+

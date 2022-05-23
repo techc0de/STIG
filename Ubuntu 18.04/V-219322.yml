@@ -1,0 +1,50 @@
+---
+
+- set_fact:
+    stig_id: V-219322
+    stig_text: "FAILED. Pam_Apparmor isn't configured to allow system administrators to pass information to any other Ubuntu operating system administrator or user, change security attributes..."
+   
+- local_action: lineinfile regexp='^V-219322' path="{{ output_path }}" state=absent
+
+- name: Verify that the Ubuntu operating system is configured to allow system administrators to pass information to any other Ubuntu operating system administrator or user.
+  block: 
+
+    - name: Check that "Pam_Apparmor" is installed on the system
+      shell: dpkg -l | egrep '^ii  apparmor'
+      register: status
+      failed_when: status.rc != 0
+
+    - name: check if AppArmor is active
+      shell: systemctl status apparmor.service | grep -w 'Active:\ active'
+      register: audit_check
+      failed_when: audit_check.rc != 0
+    
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+ 
+    - name: Install libpam-apparmor plugin if it isn't installed.    
+      become: true
+      apt:
+        name: libpam-apparmor
+        state: present
+      register: install_pkg
+
+    - name: start and enable the Apparmor service.
+      stat:
+        service: apparmor
+        state: started
+        enabled: yes     
+      register: start
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: start.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+

@@ -1,0 +1,41 @@
+---
+
+- set_fact:
+    stig_id: V-219159
+    stig_text: "FAILED. The Ubuntu operating system must deploy Endpoint Security for Linux Threat Prevention (ENSLTP)."
+    target_file: /etc/pam_pkcs11/pam_pkcs11.conf
+
+- local_action: lineinfile regexp='^V-219159' path="{{ output_path }}" state=absent
+
+- name: Ensure clamav package is installed.
+  block: 
+
+    - name: check for clamav package
+      shell: dpkg -l | egrep '^ii  clamav'
+      register: package_check
+      failed_when: package_check.rc != 0
+    
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: Install clamav if it isn't installed.    
+      become: true
+      apt:
+        name: clamav
+        state: present
+      register: install_pkg
+    
+    - set_fact:
+        stig_text: "PASSED"
+      when: install_pkg.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+
+
+

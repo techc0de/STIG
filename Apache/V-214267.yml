@@ -1,0 +1,59 @@
+---
+
+- set_fact:
+    stig_id: V-214267
+    stig_text: "The Apache web server must be protected from being stopped by a non-privileged user."
+    target_file: /run/apache2/apache2.pid
+
+- local_action: lineinfile regexp='^V-214267' path="{{ output_path }}" state=absent
+
+- name: 
+  block: 
+
+    - name: Verify the apache2 pid has permission mode of 644 or less permissive.
+      stat:
+        path: "{{ target_file }}" 
+      register: file_perm
+      failed_when: file_perm.stat.mode > '0644'
+
+    - name: Verify the apachectl has permission mode of 755 or less permissive.
+      stat:
+        path: /usr/sbin/apachectl 
+      register: apachectl
+      failed_when: apachectl.stat.mode > '0755'
+    
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+     
+    - name: set the apache2 pid permission to be 0644
+      become: true
+      file:
+        path: "{{ target_file }}" 
+        mode: 0644
+        state: touch
+      register: file_perms_rule
+
+    - name: set the apachectl permission to be 0755
+      become: true
+      file:
+        path: "{{ item }}"
+        mode: 0755
+        state: touch
+      loop:
+        - /usr/sbin/apachectl
+        - /usr/sbin/service
+      register: apachectl
+  
+    - set_fact:
+        stig_text: "PASSED"
+      when: 
+        - file_perms_rule.changed
+        - apachectl.changed
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

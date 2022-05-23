@@ -1,0 +1,47 @@
+---
+
+- set_fact:
+    stig_id: V-214239
+    stig_text: "The Apache web server must not perform user management for hosted applications."
+    target_file: /etc/apache2/
+
+- local_action: lineinfile regexp='^V-214239' path="{{ output_path }}" state=absent
+
+- name: Search for the directive
+  block: 
+
+    - name: Checking for "AuthUserFile" directive
+      shell:  grep -rli '^AuthUserFile' {{ target_file }}
+      register: check_directive
+      failed_when: check_directive.rc == 0
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: Get a list of *.conf in /etc/apache2/
+      find:  
+        paths: /etc/apache2/
+        patterns: '*.conf'
+        recurse: yes
+      register: my_find
+
+    - name: Comment out the lines found
+      replace:
+        dest: "{{ item.path }}"
+        backup: yes
+        regexp: '^\s*(AuthUserFile.*)'
+        replace: '#\1'
+      with_items: "{{ my_find.files }}"
+      register: comment_lines
+            
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: comment_lines.changed
+
+    - debug:
+        var: stig_text
+
+  always:
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

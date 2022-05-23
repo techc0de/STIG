@@ -1,0 +1,56 @@
+---
+
+- set_fact:
+    stig_id: V-214257
+    stig_text: "Debugging and trace information used to diagnose the Apache web server must be disabled."
+    target_file: /etc/apache2/apache2.conf
+
+- local_action: lineinfile regexp='^V-214257' path="{{ output_path }}" state=absent
+
+- name: Search for the directive
+  block: 
+
+    - name: Checking for "TraceEnable" directive
+      shell:  grep -ri 'TraceEnable Off' /etc/apache2/
+      register: log
+      failed_when: log.rc != 0
+
+    - name: Checking for "LogLevel" directive
+      shell:  grep -i 'LogLevel' {{ target_file }}
+      register: log_level
+      failed_when: log_level.rc != 0      
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: add TraceEnable directive to file
+      become: true
+      lineinfile:
+        path: /etc/apache2/conf-available/security.conf
+        state: present
+        regexp: '^(.*)TraceEnable(.*)$'
+        line: TraceEnable Off
+      register: add_TraceEnable
+
+    - name: add LogLevel directive to file
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        state: present
+        regexp: '^(.*)LogLevel(.*)$'
+        line: LogLevel warn
+      register: add_LogLevel      
+            
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when:
+        - add_TraceEnable.changed
+        - add_LogLevel.changed
+
+    - debug:
+        var: stig_text
+
+  always:
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

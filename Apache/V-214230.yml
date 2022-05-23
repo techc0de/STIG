@@ -1,0 +1,45 @@
+---
+
+- set_fact:
+    stig_id: V-214230
+    stig_text: "The Apache web server must use cryptography to protect the integrity of remote sessions."
+    target_file: /etc/apache2/mods-available/ssl.conf
+
+- local_action: lineinfile regexp='^V-214230' path="{{ output_path }}" state=absent
+
+- name: Search for the directive
+  block: 
+
+    - name: Checking for "ssl_module" directive
+      shell:  grep -i 'SSLProtocol.*+TLSv1.2' {{ target_file }}
+      register: log
+      failed_when: log.rc != 0
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: add 'SSLCACertificateFile' directive to file
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        state: present
+        regexp: '^\sSSLProtocol.*ALL.*(.*)$'
+        line: "        SSLProtocol -ALL +TLSv1.2"
+      register: add_ssl_protocol  
+
+    - name: restart apache2
+      shell: apachectl restart
+      ignore_errors: yes
+      register: restart
+            
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: add_ssl_protocol
+
+    - debug:
+        var: stig_text
+
+  always:
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

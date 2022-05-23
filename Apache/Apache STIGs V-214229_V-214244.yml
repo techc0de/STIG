@@ -1,0 +1,359 @@
+name: APACHE_STIGs
+description: Implement Apache2 STIGs
+schemaVersion: 1.0
+
+phases:
+  - name: build
+    steps:
+      - name: Apache_Check
+        action: ExecuteBash
+        inputs:
+          commands:
+            - |
+              function fail_with_message() {
+                1>&2 echo $1
+                exit 1
+              }
+        
+              APACHE_PATH=/usr/sbin/apache2
+              if [ -e $APACHE_PATH ]; then
+                echo "Apache2 is installed."
+              else
+                fail_with_message "Apache2 is not installed. Failing."
+              fi
+
+      - name: Check_for_STIG_file
+        action: ExecuteBash
+        inputs:
+          commands:
+            - |        
+              STIG_FILE=/etc/apache2/conf-available/extra-stigs.conf
+              if [ ! -e $STIG_FILE ]; then
+                touch $STIG_FILE
+                chmod 644 $STIG_FILE
+                a2enconf extra-stigs.conf
+              fi
+    
+      - name: V-214229
+        action: ExecuteBash
+        inputs:
+          commands:
+            - |
+              function add_STIG_message() {
+                echo $1                 
+              }
+        
+              TARGET_PATH=/etc/apache2/conf-available/extra-stigs.conf
+              if [ ! -e "$TARGET_PATH" ]; then
+                touch "$TARGET_PATH"
+              fi
+
+              # Checking for session and usertrack module existence
+              apache2ctl -M | egrep -i 'session_module|usertrack'
+              status=$?
+              if [ $status -ne 0 ]; then
+                add_STIG_message "V-214229: The Apache web server must perform server-side session management."
+                echo "LoadModule usertrack_module /usr/lib/apache2/modules/mod_usertrack.so" >> "$TARGET_PATH"
+                echo "LoadModule session_module /usr/lib/apache2/modules/mod_session.so" >> "$TARGET_PATH"
+                systemctl reload apache2
+              fi 
+
+
+      - name: V-214230
+        action: ExecuteBash
+        inputs:
+          commands:
+            - |
+              function add_STIG_message() {
+                echo $1
+              }              
+        
+              TARGET_PATH=/etc/apache2/mods-available/ssl.conf
+              if [ ! -e "$TARGET_PATH" ]; then
+                touch "$TARGET_PATH"
+              fi
+
+              grep -i 'SSLProtocol.*+TLSv1.2' "$TARGET_PATH"
+              status=$?
+              if [ $status -ne 0 ]; then
+                add_STIG_message "V-214230: The Apache web server must use cryptography to protect the integrity of remote sessions. Adding STIG."
+                sed -i 's/^[[:space:]].*SSLProtocol.*/        SSLProtocol -ALL +TLSv1.2/g' "$TARGET_PATH"
+                systemctl reload apache2
+              fi
+
+
+      - name: V-214231
+        action: ExecuteBash
+        inputs:
+          commands:
+            - |
+              function add_STIG_message() {
+                echo $1
+              } 
+
+              grep -rin 'customlog' /etc/apache2/*
+              status=$?
+              if [ $status -ne 0 ]; then
+                add_STIG_message "V-2142301: The Apache web server must have system logging enabled."
+                echo "CustomLog ${APACHE_LOG_DIR}/other_vhosts_access.log vhost_combined" >> /etc/apache2/conf-available/other-vhosts-access-log.conf
+              fi
+              
+
+      - name: V-214236
+        action: ExecuteBash
+        inputs:
+          commands:
+            - |
+              function add_STIG_message() {
+                echo $1
+              } 
+
+              # check Apache directory ownership
+              stat -c '%U' /var/log/apache2 | grep root
+              stat=$?
+              echo
+
+              stat -c '%G' /var/log/apache2 | grep adm
+              stat2=$?
+              echo
+
+              # check logs permission
+              stat -c '%a' /var/log/apache2/*.log | grep 640
+              stat3=$?
+              echo
+
+              if [[ stat -ne 0 || stat2 -ne 0 || stat3 -ne 0 ]]; then
+                add_STIG_message "V-214236: The log information from the Apache web server must be protected from unauthorized modification or deletion."
+                chmod 750 /var/log/apache2/
+                chown -R root:adm /var/log/apache2
+                chmod -R 640 /var/log/apache2/*.log
+              else
+                echo "/var/log/apache2/ has the proper file ownership/group and permissions."
+              fi
+
+
+      - name: V-214257
+        action: ExecuteBash
+        inputs:
+          commands:
+            - |
+              function add_STIG_message() {
+                echo $1
+              }
+        
+              grep -ri 'TraceEnable Off' /etc/apache2/
+              status=$?
+
+              grep -i 'LogLevel info' /etc/apache2/apache2.conf
+              status2=$?
+
+              if [ $status -ne 0 ] || [ $status2 -ne 0 ] ; then
+                add_STIG_message "V-214257: Debugging and trace information used to diagnose the Apache web server must be disabled. Adding STIG."
+                sed -i 's/.*TraceEnable.*/TraceEnable Off/g' /etc/apache2/conf-available/security.conf
+                sed -i 's/^LogLevel.*/LogLevel info/g' /etc/apache2/apache2.conf
+              fi
+
+      - name: V-214250
+        action: ExecuteBash
+        inputs:
+          commands:
+            - |
+              function add_STIG_message() {
+                echo $1          
+              }
+        
+              TARGET_PATH=/etc/apache2/conf-available/extra-stigs.conf
+              if [ ! -e "$TARGET_PATH" ]; then
+                touch "$TARGET_PATH"
+              fi
+
+              grep -ri 'SessionMaxAge 600' /etc/apache2/
+              status=$?
+              if [ $status -ne 0 ]; then
+                add_STIG_message "V-214250: The Apache web server must invalidate session identifiers upon hosted application user logout or other session termination. Adding STIG."
+                echo "SessionMaxAge 600" >> "$TARGET_PATH"
+                systemctl reload apache2
+              fi
+
+      - name: V-214255
+        action: ExecuteBash
+        inputs:
+          commands:
+            - |
+              function add_STIG_message() {
+                echo $1        
+              }
+        
+              TARGET_PATH=/etc/apache2/apache2.conf
+              if [ ! -e "$TARGET_PATH" ]; then
+                touch "$TARGET_PATH"
+              fi
+
+              grep -i 'Timeout 10' "$TARGET_PATH"
+              status=$?
+              if [ $status -ne 0 ]; then
+                add_STIG_message "V-214255: The Apache web server must be tuned to handle the operational requirements of the hosted application. Adding STIG."
+                sed -i 's/Timeout.*/Timeout 10/g' "$TARGET_PATH"
+              fi
+
+      - name: V-214252
+        action: ExecuteBash
+        inputs:
+          commands:
+            - |
+              function add_STIG_message() {
+                echo $1                 
+              }
+        
+              TARGET_PATH=/etc/apache2/conf-available/extra-stigs.conf
+              if [ ! -e "$TARGET_PATH" ]; then
+                touch "$TARGET_PATH"
+              fi
+
+              # Checking for "session_crypto_module" directive
+              apachectl -M | grep session_crypto
+              status=$?
+              if [ $status -ne 0 ]; then
+                add_STIG_message "V-214252: The Apache web server must generate a session ID long enough that it cannot be guessed through brute force. Adding STIG."
+                echo "LoadModule session_crypto_module /usr/lib/apache2/modules/mod_session_crypto.so" >> "$TARGET_PATH"
+                systemctl reload apache2
+              fi              
+
+              # Checking for "SessionCryptoCipher 256" encryption
+              grep -ri "SessionCryptoCipher aes256" /etc/apache2/
+              status2=$?
+              if [ $status2 -ne 0 ]; then
+                add_STIG_message "V-214252: The Apache web server doesn't have session cipher set to aes 256. Adding STIG."
+                echo "SessionCryptoCipher aes256" >> "$TARGET_PATH"
+                systemctl reload apache2
+              fi
+
+
+
+      - name: V-214269
+        action: ExecuteBash
+        inputs:
+          commands:
+            - |
+              function add_STIG_message() {
+                echo $1                 
+              }
+        
+              TARGET_PATH=/etc/apache2/mods-available/ssl.conf
+              if [ ! -e "$TARGET_PATH" ]; then
+                touch "$TARGET_PATH"
+              fi
+
+              egrep -i 'SSLCipherSuite.*(EXPORT|EXP)' "$TARGET_PATH"
+              status=$?
+              if [ $status -ne 0 ]; then
+                add_STIG_message "V-214269: The Apache web server must remove all export ciphers to protect the confidentiality and integrity of transmitted information. Adding STIG."
+                sed -i 's/SSLCipherSuite.*/SSLCipherSuite HIGH:MEDIUM:!MD5!EXP:!NULL:!LOW:!ADH/g' "$TARGET_PATH"
+              fi               
+
+      - name: V-214268
+        action: ExecuteBash
+        inputs:
+          commands:
+            - |
+              function add_STIG_message() {
+                echo $1                 
+              }
+        
+              TARGET_PATH=/etc/apache2/conf-available/extra-stigs.conf
+              if [ ! -e "$TARGET_PATH" ]; then
+                touch "$TARGET_PATH"
+              fi
+
+              egrep -ri 'Session On|SessionCookieName' /etc/apache2/
+              status=$?
+              if [ $status -ne 0 ]; then
+                add_STIG_message "V-214268: Cookies exchanged between the Apache web server and the client doesn't have properties set to prohibit client-side scripts from reading the cookie data. Adding STIG."
+                echo "Session On" >> "$TARGET_PATH"
+                echo "LoadModule session_cookie_module /usr/lib/apache2/modules/mod_session_cookie.so" >> "$TARGET_PATH"
+                echo "SessionCookieName session path=/; HttpOnly; Secure;" >> "$TARGET_PATH"
+
+                # echo "SessionCookieName session path=/var/lib/php/sessions;domain=dvidshub.net;httpOnly;secure;" >> "$TARGET_PATH"
+                systemctl reload apache2
+              fi                
+
+      - name: V-214265
+        action: ExecuteBash
+        inputs:
+          commands:
+            - |
+              function add_STIG_message() {
+                echo $1                 
+              }
+        
+              # Checking for LogFormat directive
+              grep -i -E LogFormat.*%t /etc/apache2/apache2.conf
+              status=$?
+
+              if [ $status -ne 0 ]; then
+                add_STIG_message "V-214265: The Apache web server must generate log records that can be mapped to UTC or GMT which are stamped at a minimum granularity of one second. Adding STIG."
+                sed -i 's/LogFormat "%h %l %u/LogFormat "%h %l %u %t/g' /etc/apache2/apache2.conf
+                systemctl reload apache2 
+              fi
+
+      - name: V-214244
+        action: ExecuteBash
+        inputs:
+          commands:
+            - |
+              function add_STIG_message() {
+                echo $1                 
+              }
+        
+              # Checking for vulnerable scripts
+              grep -rli --exclude="cgid.conf" "^script" /etc/apache2/
+              status=$?
+
+              if [ $status -eq 0 ]; then
+                add_STIG_message "V-214244: The Apache web server has vulnerable scripts. Adding STIG."         
+                find /etc/apache2/ -type f ! -name 'cgid.conf' -print0 | xargs -0 sed -i '/^script\|^Script/d'
+              fi              
+
+      - name: V-214241
+        action: ExecuteBash
+        inputs:
+          commands:
+            - |
+              function add_STIG_message() {
+                echo $1                 
+              }
+        
+              # Checking for any proxy module existence
+              grep -rli '^proxy.*module' /etc/apache2/
+              status=$?
+
+              if [ $status -eq 0 ]; then
+                add_STIG_message "V-214241: The Apache web server must not be a proxy server. Adding STIG."
+                # comment out the lines found
+                find /etc/apache2/ -type f -print0 | xargs -0 sed -i 's/^\(^proxy.*module\|^Proxy.*module\)$/#\1/'
+                systemctl reload apache2
+              fi          
+
+      - name: V-214232
+        action: ExecuteBash
+        inputs:
+          commands:
+            - |
+              function add_STIG_message() {
+                echo $1                 
+              }
+        
+              # Checking for LogFormat directive
+              apache2ctl -M | grep -i log_config_module
+              status=$?
+              
+              if [ $status -ne 0 ]; then
+                add_STIG_message "V-214232: The Apache web server must generate, at a minimum, log records for system startup and shutdown, system access, and system authentication events. Adding STIG."
+                
+                sed '212 i "LogFormat "%v:%p %h %l %u %t \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\"" vhost_combined"' /etc/apache2/apache2.conf
+                sed '213 i "LogFormat "%h %l %u %t \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\"" combined"' /etc/apache2/apache2.conf
+                sed '214 i "LogFormat "%h %l %u %t \"%r\" %>s %O" common' /etc/apache2/apache2.conf
+                sed '215 i "LogFormat "%{Referer}i -> %U" referer' /etc/apache2/apache2.conf
+                sed '216 i "LogFormat "%{User-agent}i" agent"' /etc/apache2/apache2.conf
+                systemctl reload apache2
+              fi                     

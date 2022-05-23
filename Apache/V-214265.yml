@@ -1,0 +1,55 @@
+---
+
+- set_fact:
+    stig_id: V-214265
+    stig_text: "The Apache web server must generate log records that can be mapped to UTC or GMT which are stamped at a minimum granularity of one second."
+    target_file: /etc/apache2/apache2.conf
+
+- local_action: lineinfile regexp='^V-214265' path="{{ output_path }}" state=absent
+
+- name: Search for the directive
+  block: 
+
+    - name: Checking for LogFormat directive
+      shell:  grep -i 'LogFormat' {{ target_file }}
+      register: log
+      failed_when: log.rc != 0
+
+    - name: Checking for LogFormat time zone
+      shell:  cat /etc/apache2/apache2.conf | grep -i 'LogFormat' | grep -i '%t'
+      register: time
+      failed_when: time.rc != 0  
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: add 'log_config_module'
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        state: present
+        regexp: '^(.*)log_config_module(.*)$'
+        line: |
+          log_config_module
+          LogFormat "%v:%p %h %l %u %t \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\"" vhost_combined
+          LogFormat "%h %l %u %t \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\"" combined
+          LogFormat "%h %l %u %t \"%r\" %>s %O" common
+          LogFormat "%{Referer}i -> %U" referer
+          LogFormat "%{User-agent}i" agent
+      register: add_log_module
+
+    - name: restart apache2
+      shell: systemctl restart apache2
+      register: restart
+            
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: add_log_module.changed
+
+    - debug:
+        var: stig_text
+
+  always:
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

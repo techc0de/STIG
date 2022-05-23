@@ -1,0 +1,45 @@
+---
+
+- set_fact:
+    stig_id: V-214231
+    stig_text: "The Apache web server must have system logging enabled."
+    target_file: /etc/apache2/apache2.conf
+
+- local_action: lineinfile regexp='^V-214231' path="{{ output_path }}" state=absent
+
+- name: Search for the directive
+  block: 
+
+    - name: Checking for "CustomLog" directive
+      shell:  grep -rin 'customlog' /etc/apache2/*
+      register: log
+      failed_when: log.rc != 0
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: add CustomLog directive to file
+      become: true
+      lineinfile:
+        path: /etc/apache2/conf-available/other-vhosts-access-log.conf
+        state: present
+        regexp: '^(.*)CustomLog(.*)$'
+        line: CustomLog ${APACHE_LOG_DIR}/other_vhosts_access.log vhost_combined
+      register: CustomLog
+
+    - name: restart apache2
+      shell: apachectl restart
+      ignore_errors: yes
+      register: restart
+            
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: CustomLog.changed
+
+    - debug:
+        var: stig_text
+
+  always:
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

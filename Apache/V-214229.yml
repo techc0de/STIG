@@ -1,0 +1,57 @@
+---
+
+- set_fact:
+    stig_id: V-214229
+    stig_text: "The Apache web server must perform server-side session management."
+    target_file: /etc/apache2/conf-available/extra-stigs.conf
+
+- local_action: lineinfile regexp='^V-214229' path="{{ output_path }}" state=absent
+
+- name: Search for the directive
+  block: 
+
+    - name: Checking for directive
+      shell: apache2ctl -M | grep -E 'session_module|usertrack'
+      register: directives
+      failed_when: directives.rc != 0
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: Add 'usertrack_module' module to config file
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        state: present
+        regexp: '^(.*)usertrack_module(.*)$'
+        line: LoadModule usertrack_module /usr/lib/apache2/modules/mod_usertrack.so
+        create: yes
+      register: usertrack_module
+
+    - name: Add 'session_module' module to config file
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        state: present
+        regexp: '^(.*)session_module(.*)$'
+        line: LoadModule session_module /usr/lib/apache2/modules/mod_session.so
+        create: no
+      register: session_module
+
+    - name: restart apache2
+      shell: systemctl reload apache2
+      register: restart
+            
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: 
+        - usertrack_module.changed
+        - session_module.changed
+
+    - debug:
+        var: stig_text
+
+  always:
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

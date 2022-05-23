@@ -1,0 +1,40 @@
+---
+
+- set_fact:
+    stig_id: V-214255
+    stig_text: "The Apache web server must be tuned to handle the operational requirements of the hosted application."
+    target_file: /etc/apache2/apache2.conf
+
+- local_action: lineinfile regexp='^V-214255' path="{{ output_path }}" state=absent
+
+- name: Search for the directive
+  block: 
+
+    - name: Checking for "Timeout" directive
+      shell:  grep -i 'Timeout 10' {{ target_file }}
+      register: log
+      failed_when: log.rc != 0
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: add SessionMaxAge directive to file
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        state: present
+        regexp: '^(.*)Timeout(.*)$'
+        line: Timeout 10
+      register: add_timeout
+            
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: add_timeout.changed
+
+    - debug:
+        var: stig_text
+
+  always:
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

@@ -1,0 +1,55 @@
+---
+
+- set_fact:
+    stig_id: V-214253
+    stig_text: "The Apache web server doesn't generate a session ID using as much of the character set as possible to reduce the risk of brute force."
+
+- local_action: lineinfile regexp='^V-214253' path="{{ output_path }}" state=absent
+
+- name: Ubuntu must be configured so that when passwords are changed or new password are established, pwquality must be used.
+  block: 
+
+    - name: Verify the "unique_id_module" is loaded
+      shell: apache2ctl -M | grep unique_id
+      register: module
+      failed_when: module.rc != 0
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: Add Unique Session ID to apache2 config file
+      become: true
+      lineinfile:
+        path: /etc/apache2/apache2.conf
+        create: no
+        state: present
+        regexp: '^(.*)sessionID(.*)$'
+        line: LogFormat "%h %l %u %t "%{sessionID}C" "%r" %>s %b %T" common
+        backrefs: yes
+      register: enforcing
+
+    - name: Load module
+      become: true
+      lineinfile:
+        path: /etc/apache2/conf-available/extra-stigs.conf    
+        create: no
+        regexp: '^(.*)unique_id_module(.*)$'
+        line: LoadModule unique_id_module /usr/lib/apache2/modules/mod_unique_id.so
+        state: present  
+
+    - name: restart apache2
+      shell: systemctl reload apache2
+      register: restart
+            
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: 
+        - enforcing.failed == false
+        - restart.failed == false
+    - debug:
+        var: stig_text
+
+  always:
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

@@ -1,0 +1,62 @@
+---
+
+- set_fact:
+    stig_id: V-214258
+    stig_text: "The Apache web server must set an inactive timeout for sessions."
+    target_file: /etc/apache2/mods-available/reqtimeout.conf
+
+- local_action: lineinfile regexp='^V-214258' path="{{ output_path }}" state=absent
+
+- name: Search for the directive
+  block: 
+
+    - name: Checking for "reqtimeout_module" directive
+      shell:  apachectl -M | grep -i timeout
+      register: check_module
+      failed_when: check_module.rc != 0
+
+    - name: Checking for "RequestReadTimeout" directive
+      shell:  grep -i 'RequestReadTimeout handshake=5 header=10 body=30' {{ target_file }}
+      register: timout
+      failed_when: timeout.rc != 0  
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: delete existence reqtimeout directives
+      beome: true
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: "^RequestReadTimeout.*"
+        state: absent
+        backup: yes
+
+    - name: add 'reqtimeout_module' directive to file
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        line: RequestReadTimeout handshake=5 header=10 body=30
+        state: present
+      register: add_rrt
+
+    - name: add 'reqtimeout_module' module
+      become: true
+      lineinfile:
+        path: /etc/apache2/conf-available/extra-stigs.conf
+        state: present
+        line: LoadModule reqtimeout_module /usr/lib/apache2/modules/mod_reqtimeout.so
+      register: add_rtm 
+            
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: 
+        - add_rrt.changed
+        - add_rtm.changed
+
+    - debug:
+        var: stig_text
+
+  always:
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

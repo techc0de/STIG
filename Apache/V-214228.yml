@@ -1,0 +1,47 @@
+---
+
+- set_fact:
+    stig_id: V-214228
+    stig_text: "The Apache web server doesn't limit the number of allowed simultaneous session requests."
+    target_file: /etc/apache2/apache2.conf
+
+- local_action: lineinfile regexp='^V-214228' path="{{ output_path }}" state=absent
+
+- name: Search for the directive
+  block: 
+
+    - name: Checking for directive
+      shell: egrep -iw 'keepalive on|maxkeepaliverequests 100' {{ target_file }}
+      register: directives
+      failed_when: directives.rc != 0
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: Add 'KeepAlive' and 'MaxKeepAliveRequests' directives to file
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        state: present
+        regexp: '^(.*)KeepAlive(.*)$'
+        line: |
+          KeepAlive On
+          MaxKeepAliveRequests 100
+        create: no
+      register: add_directive
+
+    - name: restart apache2
+      shell: systemctl restart apache2
+      register: restart
+            
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: add_directive.changed
+
+    - debug:
+        var: stig_text
+
+  always:
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

@@ -1,0 +1,32 @@
+---
+
+- set_fact:
+    stig_id: V-214273
+    stig_text: "The Apache web server software must be a vendor-supported version."
+
+- local_action: lineinfile regexp='^V-214273' path="{{ output_path }}" state=absent
+
+- name: Verify the Apache version.
+  block: 
+
+    - name: Verify if Apache server is running version 2.4 or newer.
+      shell: apache2 -v | awk 'NR==1{print $3}' | cut -d '/' -f2
+      register: version_check
+      failed_when: version_check.stdout is version('2.4', '<')
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: Plan of action
+      debug:
+        msg: "This Apache server need to be updated!. It's currenlty running below v2.4."
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+    
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

@@ -1,0 +1,39 @@
+---
+
+- set_fact:
+    stig_id: V-214244
+    stig_text: "The Apache web server has vulnerable scripts."
+    target_file: /etc/apache2/
+
+- local_action: lineinfile regexp='^V-214244' path="{{ output_path }}" state=absent
+
+- name: Search for the scripts
+  block: 
+
+    - name: Checking for vulnerable scripts
+      shell: grep -rli --exclude="cgid.conf" "^script" "{{ target_file }}"
+      register: script
+      failed_when: script.rc == 0
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: Remove scripts
+      shell: find /etc/apache2/ -type f ! -name 'cgid.conf' -print0 | xargs -0 sed -i '/^script\|^Script/d'
+      register: remove_scripts
+
+    - name: restart apache2
+      shell: systemctl restart apache2
+      register: restart
+            
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: remove_scripts.changed
+
+    - debug:
+        var: stig_text
+
+  always:
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

@@ -1,0 +1,49 @@
+---
+
+- set_fact:
+    stig_id: V-214268
+    stig_text: "Cookies exchanged between the Apache web server and the client doesn't have properties set to prohibit client-side scripts from reading the cookie data."
+    target_file: /etc/apache2/
+
+- local_action: lineinfile regexp='^V-214268' path="{{ output_path }}" state=absent
+
+- name: Search for the directive "Session"
+  block: 
+
+    - name: Checking for directive
+      shell: egrep -ri 'Session On|SessionCookieName' {{ target_file }}
+      register: directives
+      failed_when: directives.rc != 0
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: Add 'SessionCookieName' directive to file
+      become: true
+      lineinfile:
+        path: /etc/apache2/conf-available/extra-stigs.conf
+        state: present
+        line: |
+          Session On
+          LoadModule session_cookie_module /usr/lib/apache2/modules/mod_session_cookie.so
+          SessionCookieName session path=/var/lib/php/sessions;domain=dvidshub.net;httpOnly;secure;
+        backrefs: yes
+      register: SessionCookieName    
+
+    - name: restart apache2
+      shell: systemctl reload apache2
+      ignore_errors: yes
+      register: restart      
+           
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: 
+        - SessionCookieName.changed
+
+    - debug:
+        var: stig_text
+
+  always:
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

@@ -1,0 +1,306 @@
+name: APACHE_STIGs
+description: Implement Apache2 STIGs
+schemaVersion: 1.0
+
+phases:
+  - name: build
+    steps:
+      - name: Apache_Check
+        action: ExecuteBash
+        inputs:
+          commands:
+            - |
+              function fail_with_message() {
+                1>&2 echo $1
+                exit 1
+              }
+        
+              APACHE_PATH=/usr/sbin/apache2
+              if [ -e $APACHE_PATH ]; then
+                echo "Apache2 is installed."
+              else
+                fail_with_message "Apache2 is not installed. Failing."
+              fi
+
+      - name: Check_for_STIG_file
+        action: ExecuteBash
+        inputs:
+          commands:
+            - |        
+              STIG_FILE=/etc/apache2/conf-available/extra-stigs.conf
+              if [ ! -e $STIG_FILE ]; then
+                touch $STIG_FILE
+                chmod 644 $STIG_FILE
+                a2enconf extra-stigs.conf
+              fi        
+
+      - name: V-214242
+        action: ExecuteBash
+        inputs:
+          commands:
+            - |
+              function add_STIG_message() {
+                echo $1
+              }   
+
+              # Checking for default index.html file
+              ls /var/www/html/ | grep -i index.html
+              status=$?
+              if [ $status -eq 0 ]; then
+                add_STIG_message "V-214242: The Apache web server must provide install options to exclude the installation of documentation, sample code, example applications, and tutorials."
+                find /var/www/html/ -iname 'index.html' -exec rm -f "{}" \;
+              fi
+
+              # Checking if 000-default conf is enable
+              ls /etc/apache2/sites-enabled/ | grep -i '000-default'
+              status=$?
+              if [ $status -eq 0 ]; then
+                a2dissite 000-default.conf
+                systemctl reload apache2
+              fi
+
+      - name: V-214228
+        action: ExecuteBash
+        inputs:
+          commands:
+            - |
+              function add_STIG_message() {
+                echo $1
+              }              
+        
+              TARGET_PATH=/etc/apache2/apache2.conf
+              if [ ! -e "$TARGET_PATH" ]; then
+                touch "$TARGET_PATH"
+              fi
+
+              egrep -iw 'keepalive on|maxkeepaliverequests 100' "$TARGET_PATH"
+              status=$?
+              if [ $status -ne 0 ]; then
+                add_STIG_message "V-214228: The Apache web server doesn't limit the number of allowed simultaneous session requests."
+                sed -i 's/^KeepAlive Off/KeepAlive On/g' "$TARGET_PATH"
+                sed -i 's/^MaxKeepAliveRequests.*/MaxKeepAliveRequests 100/g' "$TARGET_PATH"
+                systemctl reload apache2
+              fi              
+
+      - name: V-214271
+        action: ExecuteBash
+        inputs:
+          commands:
+            - |
+              function add_STIG_message() {
+                echo $1
+              }              
+        
+              TARGET_PATH=/etc/apache2/conf-available/extra-stigs.conf
+              if [ ! -e "$TARGET_PATH" ]; then
+                touch "$TARGET_PATH"
+              fi
+
+              # Check to see if the account has a valid login shell
+              shell=$(/usr/bin/cut -d: -f1,7 /etc/passwd | grep -i apache)
+              if [ $shell == "apache:/bin/bash" ] ; then
+                fail_with_message "V-214271: The account used to run the Apache web server must not have a valid login shell and password defined. Failing."
+              fi
+
+              # If the service account has a valid login shell, verify that no password is configured for the account.
+              /usr/bin/cut -d: -f1,2 /etc/shadow | grep -i apache
+              status=$?
+
+              if [ $status -eq 0 ] ; then
+                fail_with_message "V-214271: The account used to run the Apache web server must not have a valid login shell and password defined. Failing."
+              fi              
+
+      - name: V-214245
+        action: ExecuteBash
+        inputs:
+          commands:
+            - |
+              function add_STIG_message() {
+                echo $1
+              }              
+        
+              TARGET_PATH=/etc/apache2/conf-available/extra-stigs.conf
+              if [ ! -e "$TARGET_PATH" ]; then
+                touch "$TARGET_PATH"
+              fi
+
+              # Check if WebDAV is disabled
+              apache2ctl -M | grep -i -E 'dav_module|dav_fs_module|dav_lock_module'
+              status=$?
+
+              if [ $status -eq 0 ]; then
+                add_STIG_message "V-214245: The Apache web server doesn't have Web Distributed Authoring (WebDAV) disabled. Adding STIG."
+                a2dismod dav_module
+                a2dismod dav_fs_module
+                a2dismod dav_lock_module
+                systemctl reload apache2
+              fi               
+
+      - name: V-214253
+        action: ExecuteBash
+        inputs:
+          commands:
+            - |
+              function add_STIG_message() {
+                echo $1
+              }              
+        
+              TARGET_PATH=/etc/apache2/conf-available/extra-stigs.conf
+              if [ ! -e "$TARGET_PATH" ]; then
+                touch "$TARGET_PATH"
+              fi
+
+              # Verify the "unique_id_module" is loaded
+              apache2ctl -M | grep -i unique_id
+              status=$?
+              
+              if [ $status -ne 0 ]; then
+                add_STIG_message "V-214253: The Apache web server doesn't generate a session ID using as much of the character set as possible to reduce the risk of brute force. Adding STIG."
+                echo "LoadModule unique_id_module /usr/lib/apache2/modules/mod_unique_id.so" >> "$TARGET_PATH"
+                systemctl reload apache2
+              fi        
+
+      - name: V-214267
+        action: ExecuteBash
+        inputs:
+          commands:
+            - |
+              function add_STIG_message() {
+                echo $1
+              }              
+        
+              TARGET_PATH=/etc/apache2/conf-available/extra-stigs.conf
+              if [ ! -e "$TARGET_PATH" ]; then
+                touch "$TARGET_PATH"
+              fi
+
+              # Verify the apache2 pid has permission mode of 644 or less permissive.
+              stat -c "%a" /run/apache2/apache2.pid | grep 644
+              status=$?
+
+              # Verify 'service' has permission mode of 755 or less permissive.
+              stat -c "%a" /usr/sbin/service | grep 755
+              status2=$?  
+
+              if [ $status -ne 0 ] || [ $status2 -ne 0 ]; then
+                add_STIG_message "V-214267: The Apache web server must be protected from being stopped by a non-privileged user. Adding STIG."
+                chmod 644 /run/apache2/apache2.pid
+                chmod 755 /usr/sbin/apachectl
+                chmod 755 /usr/sbin/service
+              fi 
+
+      - name: V-214273
+        action: ExecuteBash
+        inputs:
+          commands:
+            - |
+              # check if Apache server version is 2.4 or higher
+              version=$(apache2 -v | awk 'NR==1{print $3}' | cut -d '/' -f2)
+              if [[ $version < "2.4" ]]; then
+                echo "Fail. Apache server is not running v2.4 or newer."
+                exit 1
+              fi
+
+      - name: V-214274
+        action: ExecuteBash
+        inputs:
+          commands:
+            - |
+              function add_STIG_message() {
+                echo $1
+              }              
+        
+              TARGET_PATH=/etc/apache2/conf-available/extra-stigs.conf
+              if [ ! -e "$TARGET_PATH" ]; then
+                touch "$TARGET_PATH"
+              fi
+
+              # Verify the htpasswd file has 0550 or less permission 
+              stat -c "%a %n" /usr/bin/htpasswd | grep -v "550" | awk '{print $1}'
+              status=$?
+              
+              if [ $status -eq 0 ]; then
+                add_STIG_message "V-214274: The Apache web server htpasswd files (if present) must reflect proper ownership and permissions. Adding STIG."
+                chmod -R 550 /usr/bin/htpasswd
+              fi 
+
+      - name: V-214239
+        action: ExecuteBash
+        inputs:
+          commands:
+            - |
+              function add_STIG_message() {
+                echo $1
+              }              
+        
+              TARGET_PATH=/etc/apache2/
+
+              # Checking for "AuthUserFile" directive
+              grep -rli '^AuthUserFile' "$TARGET_PATH"
+              status=$?
+              
+              if [ $status -eq 0 ]; then
+                add_STIG_message "V-214239: The Apache web server must not perform user management for hosted applications. Adding STIG."
+                # comment out the lines found
+                find /etc/apache2/ -type f -print0 | xargs -0 sed -i 's/^\(^authUserFile\|^AuthUserFile\)$/#\1/'
+
+              fi                
+
+      - name: V-214258
+        action: ExecuteBash
+        inputs:
+          commands:
+            - |
+              function add_STIG_message() {
+                echo $1
+              }              
+        
+              TARGET_PATH=/etc/apache2/conf-available/extra-stigs.conf
+              if [ ! -e "$TARGET_PATH" ]; then
+                touch "$TARGET_PATH"
+              fi
+
+              # Checking for "reqtimeout_module" directive
+              apachectl -M | grep -i timeout
+              status=$?
+
+              # Checking for "RequestReadTimeout" directive
+              grep -ri 'RequestReadTimeout handshake=5 header=10 body=30' /etc/apache2/
+              status2=$?
+              
+              if [ $status -ne 0 ] || [ $status2 -ne 0 ]; then
+                add_STIG_message "V-214258: The Apache web server must set an inactive timeout for sessions. Adding STIG."
+
+                # delete existence timeout directives and add a new one
+                sed -i '/RequestReadTimeout.*/d' /etc/apache2/mods-available/reqtimeout.conf
+                sed -i '/IfModule>$/i \\tRequestReadTimeout handshake=5 header=10 body=30' /etc/apache2/mods-available/reqtimeout.conf
+                
+                # insert the handshake-timeout directive after the body-timeout directive
+                # sed -i '/^[[:space:]].*RequestReadTimeout header=20-40.*/i \\tRequestReadTimeout handshake=5 header=10 body=30' /etc/apache2/mods-available/reqtimeout.conf
+                systemctl reload apache2
+              fi   
+
+      - name: V-214243
+        action: ExecuteBash
+        inputs:
+          commands:
+            - |
+              function add_STIG_message() {
+                echo $1
+              }              
+        
+              TARGET_PATH=/etc/apache2/conf-available/extra-stigs.conf
+              if [ ! -e "$TARGET_PATH" ]; then
+                touch "$TARGET_PATH"
+              fi
+
+              # Checking for 'action' or 'handler' directives existence
+              grep -i -E 'action|handler' /etc/apache2/apache2.conf
+              status=$?
+              
+              if [ $status -eq 0 ]; then
+                add_STIG_message "V-214243: The Apache web server must have resource mappings set to disable the serving of certain file types. Adding STIG."
+                sed -i -e 's/^Action.*//' /etc/apache2/apache2.conf
+                sed -i -e 's/^AddHandler.*//' /etc/apache2/apache2.conf
+                apachectl restart
+              fi                

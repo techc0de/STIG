@@ -1,0 +1,44 @@
+---
+
+- set_fact:
+    stig_id: V-214232
+    stig_text: "The Apache web server must generate, at a minimum, log records for system startup and shutdown, system access, and system authentication events."
+    target_file: /etc/apache2/apache2.conf
+
+- local_action: lineinfile regexp='^V-214232' path="{{ output_path }}" state=absent
+
+- name: Search for the directive "Session"
+  block: 
+
+    - name: Checking for 'LogFormat' module
+      shell: apache2ctl -M | grep -i log_config_module
+      register: directives
+      failed_when: directives.rc != 0
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: Add 'LogFormat' directive
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        state: present
+        regexp: '^(.*)LogFormat(.*)$'
+        line: LogFormat "%a %A %h %H %l %m %s %t %u %U \"%{Referer}i\" " common
+      register: LogFormat
+
+    - name: restart apache2
+      shell: apachectl restart
+      register: restart      
+          
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: LogFormat.changed
+
+    - debug:
+        var: stig_text
+
+  always:
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

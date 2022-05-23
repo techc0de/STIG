@@ -1,0 +1,35 @@
+---
+
+- set_fact:
+    stig_id: V-214274
+    stig_text: "The Apache web server htpasswd files (if present) must reflect proper ownership and permissions."
+
+- local_action: lineinfile regexp='^V-214274' path="{{ output_path }}" state=absent
+
+- name: Verify the htpasswd file has mode of 0550 or less permissive.
+  block: 
+
+    - name: Verify the htpasswd file permission
+      shell: stat -c "%a %n" /usr/bin/htpasswd | awk '{print $1}'
+      register: file_perm
+      failed_when: file_perm.stdout is version('550', '>')
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+     
+    - name: Set the htpasswd permission to '0550'.
+      become: true
+      shell: chmod -R 550 /usr/bin/htpasswd
+      register: file_perms_rule 
+  
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_perms_rule.changed
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

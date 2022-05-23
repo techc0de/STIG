@@ -1,0 +1,53 @@
+---
+
+- set_fact:
+    stig_id: V-214242
+    stig_text: "The Apache web server must provide install options to exclude the installation of documentation, sample code, example applications, and tutorials."
+    target_file: /etc/apache2/
+
+- local_action: lineinfile regexp='^V-214242' path="{{ output_path }}" state=absent
+
+- name: Search for the directives
+  block: 
+
+    - name: Checking for default index.html file
+      shell: ls /var/www/html/* | grep -i index.html
+      register: index
+      failed_when: index.rc == 0
+
+    - name: Checking if 000-default conf is enable
+      shell: ls /etc/apache2/sites-enabled/* | grep -i '000-default'
+      register: 000-default
+      failed_when: 000-default.rc == 0      
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: Delete index.html file
+      become: true
+      file:
+        path: /var/www/html/index.html
+        state: absent
+      register: index
+
+    - name: Disable 000-default site
+      shell: a2dissite 000-default.conf
+      register: default  
+
+    # - name: Disable Apache manual if it exists
+    #   shell: a2disconf apache2-doc
+    #   register: disable_manual
+            
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: 
+        - index.changed
+        - default.changed
+
+    - debug:
+        var: stig_text
+
+  always:
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

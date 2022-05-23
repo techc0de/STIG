@@ -1,0 +1,45 @@
+---
+
+- set_fact:
+    stig_id: V-214271
+    stig_text: "The account used to run the Apache web server must not have a valid login shell and password defined."
+
+- local_action: lineinfile regexp='^V-214271' path="{{ output_path }}" state=absent
+
+- name: 
+  block: 
+    - name: Identify the account that is running the "httpd" process
+      become: true
+      shell: ps -ef | grep -i apache2 | grep -v grep
+      register: location
+
+    - name: Check to see if the account has a valid login shell.
+      shell: "cut -d: -f1,7 /etc/passwd | grep -i apache"
+      when: location.rc == 0
+      register: shell
+      failed_when: shell.stdout_lines == 'apache:/bin/bash'
+
+    - name: If the service account has a valid login shell, verify that no password is configured for the account.
+      shell: 'cut -d: -f1,2 /etc/shadow | grep -i apache'
+      when: shell.rc == 0
+      register: login_check
+      failed_when: login_check.rc == 0
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: lock the account used to run the 'apache' process
+      shell: passwd -l apache
+      register: lock_account
+            
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: lock_account.changed
+
+    - debug:
+        var: stig_text
+
+  always:
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

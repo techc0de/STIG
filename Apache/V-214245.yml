@@ -1,0 +1,44 @@
+---
+
+- set_fact:
+    stig_id: V-214245
+    stig_text: "The Apache web server doesn't have Web Distributed Authoring (WebDAV) disabled."
+    target_file: /etc/apache2
+
+- local_action: lineinfile regexp='^V-214245' path="{{ output_path }}" state=absent
+
+- name: The Apache web server must have Web Distributed Authoring (WebDAV) disabled.
+  block: 
+    - name: View a list of installed modules.
+      become: true
+      shell: apache2ctl -M | grep -i -E 'dav_module|dav_fs_module|dav_lock_module'
+      register: modules
+      failed_when: modules.stdout | length > 0
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: Determine the location of the modules
+      become: true
+      shell: grep -rl "{{ modules }}"
+      register: location
+
+    - name: edit and comment out the modules
+      shell: sed -i -E 's/^{{ modules.stdout_lines }}/#\1/g' /etc/apache2/{{ location.stdout_lines }}
+      register: edit
+
+    - name: restart apache2
+      shell: systemctl restart apache2
+      register: restart
+            
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: 
+        - location.failed == false
+        - edit.changed
+    - debug:
+        var: stig_text
+
+  always:
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

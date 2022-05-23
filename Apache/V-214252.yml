@@ -1,0 +1,52 @@
+---
+
+- set_fact:
+    stig_id: V-214252
+    stig_text: "The Apache web server must generate a session ID long enough that it cannot be guessed through brute force."
+    target_file: /etc/apache2/conf-available/extra-stigs.conf
+
+- local_action: lineinfile regexp='^V-214252' path="{{ output_path }}" state=absent
+
+- name: Search for session crypto module and it's cipher
+  block: 
+
+    - name: Checking for "session_crypto_module" directive
+      shell: apachectl -M | grep session_crypto
+      register: check_module
+      failed_when: check_module.rc != 0
+
+    - name: Checking for "SessionCryptoCipher 256" encryption
+      shell: grep -ri "SessionCryptoCipher aes256" /etc/apache2/
+      register: check_cipher
+      failed_when: check_cipher.rc != 0  
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: add SessionCryptoCipher directive to file
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        state: present
+        regexp: '^(.*)SessionCryptoCipher(.*)$'
+        line: |
+          SessionCryptoCipher aes256
+          LoadModule session_crypto_module /usr/lib/apache2/modules/mod_session_crypto.so
+      register: add_session_max_age
+
+    - name: restart apache2
+      shell: systemctl reload apache2
+      ignore_errors: yes
+      register: restart
+            
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: add_session_max_age.changed
+
+    - debug:
+        var: stig_text
+
+  always:
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

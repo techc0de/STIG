@@ -1,0 +1,36 @@
+---
+
+- set_fact:
+    stig_id: V-238344
+    stig_text: "FAILED. Ubuntu doesn't have directories that contain system commands set to a mode of 0755 or less permissive."
+
+- local_action: lineinfile regexp='^V-238344' path="{{ output_path }}" state=absent
+
+- name: Verify the system commands contained in the following directories have mode 0755 or less permissive.
+  block: 
+
+    - name: Verify the system commands directories have mode 0755 or less permissive.
+      shell: find /bin /sbin /usr/bin /usr/sbin /usr/local/bin /usr/local/sbin -type d | xargs stat -c "%a %n" | grep -v "755" | awk '{print $2}'
+      register: file_perm
+      failed_when: file_perm.stdout | length > 0   
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+     
+    - name: Configure the system commands directories to be protected from unauthorized access.
+      become: true
+      shell: "chmod -R 0755 {{ item }}" 
+      with_items: "{{ file_perm.stdout_lines }}"
+      register: file_perms_rule 
+  
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_perms_rule.changed == true
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

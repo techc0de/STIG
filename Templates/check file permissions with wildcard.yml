@@ -1,0 +1,62 @@
+---
+
+- set_fact:
+    stig_id: V-214236
+    stig_text: 'FAILED. The log information from the Apache web server must be protected from unauthorized modification or deletion.'
+    target_file: /var/log/apache2/
+
+- local_action: lineinfile regexp='^V-238338' path="{{ output_path }}" state=absent
+
+- name: verify that the "{{ target_file }}" file is owned by root:adm.
+  block: 
+
+    - stat: 
+        path: "{{ target_file }}"
+      register: st
+      failed_when: 
+        - st.stat.pw_name != 'root'
+        - st.stat.gr_name != 'syslog'
+
+    - name: check Apache logs octal permissions 
+      find:
+        paths: "{{ target_file }}"     
+        patterns: '*.log'
+      register: log_perms
+      failed_when: log_perms.stat.mode != '640'
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: update Apache log directory ownership
+      become: true
+      file:
+        path: "{{ target_file }}"
+        owner: root
+        group: adm
+        mode: 0750
+      register: directory
+
+    - name: update Apache logs permissions
+      become: true
+      file: 
+        path: "{{ item.path }}"
+        owner: root
+        group: adm
+        mode: 0640
+      with_items: "{{ log_perms.files }}"
+      register: log_files
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: 
+        - directory.changed == true
+        - log_files.changed == true
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

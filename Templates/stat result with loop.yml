@@ -1,0 +1,27 @@
+---
+- hosts: all
+  become: yes
+  gather_facts: no
+  tasks:
+    - name: Check that domains exist
+      stat:
+        path: /path/to/the/domain/{{ item }}
+      loop:
+        - path1
+        - path2
+        - path3
+      register: my_stat
+
+    - name: Ensure symlinks are created for bin on existing domain machines
+      file:
+        src: /path/new/symlink_bin_link
+        dest: /path/to/the/domain/{{ item }}/bin
+        state: link
+      loop: "{{ my_stat.results | selectattr('stat.exists') | map(attribute='item') | list }}"
+
+    - name: Ensure symlinks are created for config on existing domain machines
+      file:
+        src: /path/new/symlink_config_link
+        dest: /path/to/the/domain/{{ item }}/config
+        state: link
+      loop: "{{ my_stat.results | selectattr('stat.exists') | map(attribute='item') | list }}"

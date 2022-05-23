@@ -1,0 +1,89 @@
+---
+
+- set_fact:
+    stig_id: V-238228
+    stig_text: "Failed. Ubuntu 18 doesn't use pwquality."
+    target_file: /etc/pam.d/common-password
+
+- local_action: lineinfile regexp='^V-238228' path="{{ output_path }}" state=absent
+
+- name: Ubuntu must be configured so that when passwords are changed or new password are established, pwquality must be used.
+  block: 
+    - name: check for the file existence
+      stat:
+        path: "{{ target_file }}"
+      register: pam_file
+      
+    - set_fact:
+        stig_text: "FAILED. {{ target_file }} file does not exist."
+      when: pam_file.stat.exists == False
+
+    - name: check if pwquality module is installed.
+      become: true
+      shell: dpkg -l libpam-pwquality | wc -l
+      register: package_status
+      failed_when: package_status.rc != 0 
+
+    - name: check if pwquality module is being enforced.
+      become: true
+      shell: grep -i ^enforcing /etc/security/pwquality.conf | awk '{print $3}'
+      register: enforce_status
+      failed_when: enforce_status.stdout != 1
+
+    - shell: |
+        cat /etc/pam.d/common-password | grep requisite | grep pam_pwquality
+      register: result
+      failed_when: (result.stdout | length < 0) or 
+                  (result.stdout.find('enforce_for_root') == -1) or
+                  (result.stdout.find('retry=3') == -1)
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: install pam_pwquality package
+      become: true
+      apt:
+        name: libpam-pwquality
+        state: present
+        # update_cache: true
+        force: yes
+      register: pam_install
+      
+    - name: Configure Ubuntu to use pwquality to enforec password complexity.
+      become: true
+      lineinfile:
+        path: /etc/security/pwquality.conf
+        create: no
+        state: present
+        regexp: '^(.*)enforcing(.*)$'
+        line: 'enforcing = 1'
+        backrefs: yes
+      register: enforcing
+
+    - name: Configure the common-password file.
+      become: true
+      pamd:
+        path: '/etc/pam.d/'
+        name: common-password
+        type: password
+        control: requisite
+        module_path: pam_deny.so
+        module_arguments: ''
+        new_type: password
+        new_control: requisite
+        new_module_path: pam_pwquality.so
+        module_arguments: retry=3
+        state: after
+      register: config_updated
+      
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: enforcing.failed == false or config_updated.failed == false
+
+    - debug:
+        var: stig_text
+
+  always:
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

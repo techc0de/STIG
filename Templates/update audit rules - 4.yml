@@ -1,0 +1,73 @@
+---
+
+- set_fact:
+    stig_id: V-219306
+    stig_text: "FAILED. Ubuntu does not monitor remote access methods."
+    target_file: /etc/rsyslog.d/50-default.conf
+
+- local_action: lineinfile regexp='^V-219306' path="{{ output_path }}" state=absent
+
+- name: check for target file existence
+  block: 
+    - name: check for the file
+      stat:
+        path: "{{ target_file }}"
+      register: rules_file
+
+    - fail:
+        msg: "FAILED. {{ target_file }} file does not exist."
+      when: rules_file.stat.exists == False
+
+    - name: check for audit rules
+      shell: grep -E -r '^(auth,authpriv\.\*|daemon\.\*)' /etc/rsyslog.*
+      register: audit_check
+      failed_when: 
+        - audit_check.stdout_lines.find('auth.*') == -1 
+        - audit_check.stdout_lines.find('authpriv.*') == -1 
+        - audit_check.stdout_lines.find('daemon.*') == -1
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+    - name: create "{{ target_file }}" if it doesn't exist
+      become: true
+      file:
+        path: "{{ target_file }}"
+        state: touch 
+
+    - name: remove any previous logging configuation
+      become: true
+      replace:
+        path: "{{ target_file }}"
+        regexp: >
+          ^\#*\s*{{ item }}\..*
+      with_items:
+        - 'auth'
+        - 'authpriv'
+        - 'daemon'
+
+    - name: configure Ubuntu to monitor all remote access methods
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        line: |
+          auth.*,authpriv.* /var/log/secure
+          daemon.notice /var/log/messages
+        state: present
+      register: config_updated
+  
+    - name: restart rsyslog service
+      service:
+        name: rsyslog
+        state: restarted
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: config_updated.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

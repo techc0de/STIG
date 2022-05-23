@@ -1,0 +1,46 @@
+---
+
+- set_fact:
+    stig_id: V-214241
+    stig_text: "The Apache web server must not be a proxy server."
+    target_file: /etc/apache2/
+
+- local_action: lineinfile regexp='^V-214241' path="{{ output_path }}" state=absent
+
+- name: Search for the directive "Session"
+  block: 
+
+    - name: Checking for proxy module
+      shell: grep -rli '^proxy.*module' {{ target_file }}
+      register: directives
+      failed_when: directives.rc == 0
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: Get a list of *.conf in /etc/apache2/
+      find:  
+        paths: /etc/apache2/
+        patterns: '*.conf'
+        recurse: yes
+      register: my_find
+
+    - name: Replace strings in files found
+      replace:
+        dest: "{{ item.path }}"
+        backup: yes
+        regexp: '^proxy.*module'
+        replace: '#\1'
+      with_items: "{{ my_find.files }}"
+          
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: comment_out_proxy.changed
+
+    - debug:
+        var: stig_text
+
+  always:
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

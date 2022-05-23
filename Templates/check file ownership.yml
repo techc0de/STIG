@@ -1,0 +1,40 @@
+---
+
+- set_fact:
+    stig_id: V-238338
+    stig_text: 'FAILED. the /var/log/syslog file is not owned by syslog.'
+    target_file: /var/log/syslog
+
+- local_action: lineinfile regexp='^V-238338' path="{{ output_path }}" state=absent
+
+- name: verify that the /var/log/syslog file is owned by syslog.
+  block: 
+
+    - stat: 
+        path: "{{ target_file }}"
+      register: st
+      failed_when: st.stat.gr_name != 'syslog'
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: change the group-owner of the file /var/log/syslog to syslog
+      become: true
+      file:
+        path: "{{ target_file }}"
+        group: syslog
+        state: touch
+      register: file_perms
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_perms.changed == true
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

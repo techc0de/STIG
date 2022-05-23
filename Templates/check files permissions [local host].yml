@@ -1,0 +1,59 @@
+---
+
+- name: verify that the logs ownership/perms are belong to system administrators and service accounts.
+  hosts: localhost
+  vars:
+    stig_id: Test-12345
+    stig_text: 'FAILED. The Apache web server log files must only be accessible by privileged users.'
+    target_file: /tmp/
+
+    output_path: "/tmp/stig-{{ansible_hostname}}.txt"
+    local_action: lineinfile regexp='^Test-12345' path="{{ output_path }}" state=absent
+
+  tasks:
+    - name:
+      block:
+        - name: verify the logs ownership
+          find:
+            paths: "{{ target_file }}"
+            patterns: "*.txt"
+          register: ownership
+          failed_when: ownership.files | selectattr('pw_name', '!=', 'root') | list
+
+        - name: verify the logs group ownership
+          find:
+            paths: "{{ target_file }}"
+            patterns: "*.txt"
+          register: group
+          failed_when: group.files | selectattr('gr_name', '!=', 'adm') | list
+
+        - name: verify the logs permissions
+          find:
+            paths: "{{ target_file }}"
+            patterns: "*.txt"
+          register: permissions
+          failed_when: permissions.files | selectattr('mode', '!=', '0640') | list
+
+        - set_fact:
+            stig_text: "{{ stig_id }} PASSED"
+
+      rescue:
+        - name: change the permission and ownership of the files
+          become: true
+          file:
+            path: "{{ item.path }}"
+            owner: root
+            group: adm
+            mode: 0750
+          with_items: "{{ ownership.files }}"
+          register: change_perms
+
+        - set_fact:
+            stig_text: "PASSED"
+          when: change_perms.changed == true
+
+        - debug:
+            msg: "{{ stig_id }} {{ stig_text }}"
+
+      always:
+        - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

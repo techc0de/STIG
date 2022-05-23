@@ -1,0 +1,42 @@
+---
+
+- set_fact:
+    stig_id: V-219235
+    stig_text: 'FAILED. Audit configuration files are not owned by root user.'
+    target_files: 
+      - /etc/audit/audit.rules
+      - /etc/audit/auditd.conf
+      - /etc/audit/rules.d/*
+
+- local_action: lineinfile regexp='^V-219235' path="{{ output_path }}" state=absent
+
+- name: verify that the "{{ target_files }}" are owned by root.
+  block: 
+
+    - name: check audit configuration files
+      become: true
+      shell: stat -c "%n %U" /etc/audit/audit.rules /etc/audit/rules.d/* /etc/audit/auditd.conf | grep -v 'root' | awk '{ print $1 }'
+      register: file_perm
+      failed_when: file_perm.stdout | length > 0
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: configure the permissions of the "{{ target_files }}" to be owned by root user.
+      become: true
+      shell: chown -R root "{{ item }}"
+      with_items: "{{ file_perm.stdout_lines }}"
+      register: file_perms_rule
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_perms_rule.changed == true
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

@@ -1,0 +1,72 @@
+---
+
+- set_fact:
+    stig_id: V-238369
+    stig_text: "Ubuntu system doesn't implement address space layout randomization to protect its memory from unathorized code execution."
+    target_file: /etc/sysctl.conf
+
+- local_action: lineinfile regexp='^V-238369' path="{{ output_path }}" state=absent
+
+- name: Ubuntu must be implement address space layout randomization (ALSR).
+  block: 
+    - name: check for the file existence
+      stat:
+        path: "{{ target_file }}"
+      register: kernel_space
+      
+    - set_fact:
+        stig_text: "FAILED. {{ target_file }} file does not exist."
+      when: kernel_space.stat.exists == False
+
+    - name: check if kernel space is installed
+      become: true
+      shell: sysctl kernel.randomize_va_space
+      register: kernel_status
+      failed_when: kernel_status.rc != 0
+
+    - name: check if kernel space value is set to 2
+      become: true
+      shell:  cat /proc/sys/kernel/randomize_va_space
+      register: kernel_value
+     
+    - name: verify saved kernel space value is set to 2
+      become: true
+      shell:  egrep -R "^kernel.randomize_va_space=[^2]" /etc/sysctl.conf /etc/sysctl.d
+      register: saved_kernel
+     
+    - fail:
+        msg: "{{ stig_text }}"
+      when: kernel_value.stdout != 2 or saved_kernel.rc == 0
+    
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+      
+    - name: Configure Ubuntu to use pwquality to enforec password complexity.
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        create: no
+        state: present
+        regexp: '^(.*)kernel.randomize_va_space(.*)$'
+        line: 'kernel.randomize_va_space = 2'
+        backrefs: yes
+      register: set_kernel_value
+
+    - name: Configure the common-password file.
+      become: true
+      shell: sysctl --system
+      register: reload
+      
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: 
+        - set_kernel_value.failed == false 
+        - reload.failed == false
+
+    - debug:
+        var: stig_text
+
+  always:
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

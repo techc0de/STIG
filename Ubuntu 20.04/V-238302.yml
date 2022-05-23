@@ -1,0 +1,65 @@
+---
+
+- set_fact:
+    stig_id: V-238302
+    stig_text: 'FAILED. Audit tools are not group-owned by root.'
+
+- local_action: lineinfile regexp='^V-238302' path="{{ output_path }}" state=absent
+
+- name: Ensure audit tools are own by root user.
+  block: 
+    - name: Verify the specified audit tools are exists.
+      become: true
+      stat:
+        path: "/sbin/{{ item }}"
+      loop:
+        - auditctl
+        - aureport
+        - ausearch
+        - autrace
+        - auditd
+        - audispd
+        - augenrules
+      register: audit_tools
+    
+    - name: Verify the group ownership of audit tools are belong to root.
+      loop: |
+        {{ audit_tools.results | map(attribute='item')
+        | zip(audit_tools.results | map(attribute='stat.gr_name'))
+        | list }}
+
+      assert:
+        that: item.1 == 'root'
+      loop_control:
+        label: "{{ item.0 }}"
+
+    - set_fact:
+        stig_text: "PASSED"
+    
+  rescue:
+
+    - name: change the audit tools ownership to root and create audit tools if it doesn't exist.
+      become: true
+      file:
+        path: "/sbin/{{ item.item }}"
+        group: root
+        state: "{{ 'file' if item.stat.exists else 'touch' }}"
+      loop: "{{ audit_tools.results }}"
+      register: file_perms_rule 
+  
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_perms_rule.changed
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+
+
+
+
+
+
+

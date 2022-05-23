@@ -1,0 +1,60 @@
+---
+
+- set_fact:
+    stig_id: V-238218
+    stig_text: "FAILED. Ubuntu failed to not allow unattended or automatic login via ssh. "
+    target_file: /etc/ssh/sshd_config
+
+- local_action: lineinfile regexp='^V-238218' path="{{ output_path }}" state=absent
+
+- name: Verify that unattended or automatic login via ssh is disabled.
+  block: 
+
+    - name: Check that unattended or automatic login via ssh is disabled.
+      shell:  egrep '^Permit(.*?)(Passwords|Environment)\sno' "{{ target_file }}"
+      register: audit_check
+      failed_when: audit_check.rc != 0
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: configure the SSH daemon to deny empty passwords login to the system 
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        line: PermitEmptyPasswords no
+        regexp: '^#*\s*PermitEmptyPasswords.*'
+        state: present
+      register: set_empty_pw
+
+    - name: configure the SSH daemon to deny unattended or automatic login to the system 
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        line: PermitUserEnvironment no
+        regexp: '^#*\s*PermitUserEnvironment.*'
+        state: present
+      register: set_user_env
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: 
+        - set_empty_pw.failed == false 
+        - set_user_env.failed == false
+
+    - name: restart sshd.service
+      become: true
+      service:
+        name: sshd
+        state: restarted
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+
+
+

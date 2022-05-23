@@ -1,0 +1,34 @@
+---
+
+- set_fact:
+    stig_id: V-238334
+    stig_text: "FAILED. Kernel core dumps is not disabled unless needed."
+    
+- local_action: lineinfile regexp='^V-238334' path="{{ output_path }}" state=absent
+
+- name: Verify that kernel core dumps are disabled unless needed.
+  block: 
+  
+    - name: Check if "kdump" service is active 
+      shell: systemctl is-active kdump.service
+      register: audit_check
+      failed_when: audit_check.stdout == 'active'
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+    - name: disable kernel dump service   
+      shell: systemctl disable kdump.service
+      register: disable_service
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: disable_service.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+

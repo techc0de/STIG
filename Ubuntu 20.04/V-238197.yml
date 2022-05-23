@@ -1,0 +1,57 @@
+---
+
+- set_fact:
+    stig_id: V-238197
+    stig_text: "FAILED. Ubuntu does not display the Standard Mandatory DoD Notice and Consent Banner before granting local access to the system via a graphical user logon."
+    target_file: /etc/gdm3/greeter.dconf-defaults
+
+- local_action: lineinfile regexp='^V-238197' path="{{ output_path }}" state=absent
+
+- name: Check for stig.rules config file existence
+  block: 
+    - name: check for the file
+      stat:
+        path: "{{ target_file }}"
+      register: rules_file
+
+    - name: check for banner-message rule
+      shell: grep banner-message-enable "{{ target_file }}"
+      register: audit_check
+      failed_when: audit_check.stdout_lines != "banner-message-enable=true"
+
+    - assert:
+        that: audit_check.stdout_lines.find(#) == -1
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+  
+    - name: configure the operating system to have the banner message.
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^#*\s*banner-message.*$'
+        state: present
+        create: yes
+        line: |
+          [org/gnome/login-screen]
+          
+          banner-message-enable=true
+      register: file_updated
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_updated.failed == false
+
+    - name: restart banner service
+      shell: |
+        dconf update
+        systemctl restart gdm3
+      ignore_errors: true
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+

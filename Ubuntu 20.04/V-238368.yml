@@ -1,0 +1,39 @@
+---
+
+- set_fact:
+    stig_id: V-238368	
+    stig_text: "Failed. Ubuntu 18 doesn't implement non-executable data to protect its memory from unauthorized code execution.."
+    
+
+- local_action: lineinfile regexp='^V-238368' path="{{ output_path }}" state=absent
+
+- name: Ubuntu must implement non-executable data to protect its memory from unauthorized code execution..
+  block:
+
+    - name: Verify the NX (no-execution) bit flag is set on the system.
+      become: true
+      shell: dmesg | grep -i "execute disable"
+      register: bit 
+       
+    - name: Check bit flag in cpuinfo module.
+      become: true
+      shell: grep flags /proc/cpuinfo | grep -w nx | sort -u | wc -l
+      register: flag
+      when: bit.rc != 0
+     
+    - assert:
+        that: bit.rc == 0 or flag.stdout == 1
+      
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - set_fact:
+        stig_text: "{{ stig_id }} Please check the BIOS configuration and set the 'No Excution bit' to 'Enable'."
+   
+    - debug:
+        var: stig_text
+
+  always:
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

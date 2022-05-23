@@ -1,0 +1,40 @@
+---
+
+- set_fact:
+    stig_id: V-238339
+    stig_text: 'FAILED. the /var/log/syslog file is not owned by root.'
+    target_file: /var/log
+
+- local_action: lineinfile regexp='^V-238339' path="{{ output_path }}" state=absent
+
+- name: verify that the /var/log file is owned by root.
+  block: 
+
+    - stat: 
+        path: "{{ target_file }}"
+      register: st
+      failed_when: st.stat.pw_name != 'root'
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: change the group-owner of the file /var/log to 'root'
+      become: true
+      file:
+        path: "{{ target_file }}"
+        owner: root
+        state: touch
+      register: file_perms
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_perms.changed == true
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

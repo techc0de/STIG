@@ -1,0 +1,55 @@
+---
+# On-Prem servers don't have FIPS enabled.
+- set_fact:
+    stig_id: V-238363
+    stig_text: "FAILED. Ubuntu does not implement NIST FIPS-validated cryptography to protect classified information."
+    target_file: /etc/default/grub
+
+- local_action: lineinfile regexp='^V-238363' path="{{ output_path }}" state=absent
+
+- name: Check for stig.rules config file existence
+  block: 
+
+    - name: check for audit rules
+      shell: grep -i 1 /proc/sys/crypto/fips_enabled
+      register: audit_check
+      failed_when: audit_check.rc != 0
+
+    - assert:
+        that: 
+          - audit_check.stdout == 1
+        fail_msg: Audit Rules Not Configured
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: add/update the audit rules for 'action mail acct'.
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^(.*)GRUB_CMDLINE_LINUX_DEFAULT(.*)$'
+        line: 'GRUB_CMDLINE_LINUX_DEFAULT="quiet splash fips=1"'
+        # line: 'fips=1'
+        state: present
+        create: no
+        backrefs: yes  
+      register: file_updated
+
+    - name: update grub config file
+      become: true
+      shell: update-grub
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_updated.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+
+
+

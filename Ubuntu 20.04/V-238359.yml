@@ -1,0 +1,46 @@
+---
+
+- set_fact:
+    stig_id: V-238359
+    stig_text: "FAILED. APT does not configured to to prevent the installation of patches, service packs, device drivers."
+    target_file: /etc/apt/apt.conf.d/*
+
+- local_action: lineinfile regexp='^V-238359' path="{{ output_path }}" state=absent
+
+- name: Check for stig.rules config file existence
+  block: 
+    - name: check for the file
+      stat:
+        path: "{{ target_file }}"
+      register: rules_file
+
+    - name: check APT rules
+      shell: egrep -ir '(.*AllowUnauthenticated.*\")true(\";)' /etc/apt/apt.conf.d/* | cut -d ":" -f 1
+      register: audit_check
+      failed_when: audit_check.stdout_lines | length > 0
+
+    - set_fact:
+        stig_text: "PASSED"
+      
+  rescue:
+
+    - name: configure APT to prevent the installation of unverified packages, patches, or drivers
+      become: true
+      lineinfile:
+        path: "{{ item }}"
+        state: present
+        regexp: '(.*AllowUnauthenticated.*\")true(\";)'
+        line: \1false\2
+        backrefs: yes
+      with_items: "{{ audit_check.stdout_lines }}"
+      register: config_updated
+
+    - set_fact: 
+        stig_text: "PASSED"
+      when: config_updated.changed == true
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

@@ -1,0 +1,55 @@
+---
+
+- set_fact:
+    stig_id: V-238199
+
+- local_action: lineinfile regexp='^V-238199' path="{{ output_path }}" state=absent
+
+- name: check banner message config
+  block: 
+
+    # no default display manager file indicates a system without a graphical interface
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED. Note: no graphical interface."
+      when: has_display == false
+
+    - command: /bin/false
+      when: has_display == false
+
+    - name: check lock screen status
+      shell: gsettings get org.gnome.desktop.lockdown disable-lock-screen
+      register: lock_screen
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED."
+      when: lock_screen.stdout == "false"
+
+    - command: /bin/false
+      when: lock_screen.stdout == "false"
+
+    - name: enable lock screen
+      become: true
+      command: gsettings set org.gnome.desktop.lockdown disable-lock-screen false
+
+    - name: check lock screen status
+      shell: gsettings get org.gnome.desktop.lockdown disable-lock-screen
+      register: update_lock_screen
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED. note: command used 'org.gnome.desktop.lockdown disable-lock-screen'"
+      when: update_lock_screen.stdout == "false"
+
+    - command: /bin/false
+      when: update_lock_screen.stdout == "false"
+
+    - set_fact:
+        stig_text: "{{ stig_id }} FAILED"
+
+  rescue:
+
+    - debug:
+        var: stig_text
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

@@ -1,0 +1,64 @@
+---
+
+- set_fact:
+    stig_id: V-238207	
+    stig_text: "FAILED. Ubuntu does not initiate a session lock after a 10-minute period of inactivity for all connection types."
+    target_file: /etc/profile.d/99-terminal_tmout.sh
+
+- local_action: lineinfile regexp='^V-238207' path="{{ output_path }}" state=absent
+
+- name: check for stig.rules file existence
+  block: 
+    - name: check for the file
+      stat:
+        path: "{{ target_file }}"
+      register: rules_file
+
+    - fail:
+        msg: "FAILED. {{ target_file }} file does not exist."
+      when: rules_file.stat.exists == False
+
+    - name: check for audit rules
+      shell: grep -E "\bTMOUT=[0-9]+" /etc/bash.bashrc /etc/profile.d/*
+      register: audit_check
+      failed_when: audit_check.rc != 0 or audit_check.stdout_lines.find(#) != -1
+
+    - name: check for audit rules timeout
+      shell: grep -iw "TMOUT=600" /etc/bash.bashrc /etc/profile.d/*
+      register: timeout_check
+      failed_when: timeout_check.rc != 0 or audit_check.stdout_lines.find(#) != -1  
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+    - name: remove any existing auto logout rules from the file.      
+      lineinfile:
+        path: "{{ target_file }}"
+        regexp: '^(.*)TMOUT(.*)$'
+        state: absent
+        create: yes
+        backup: yes
+
+    - name: Configure the Ubuntu operating system to initiate a session logout after a 15-minute period of inactivity.
+      lineinfile:
+        path: "{{ target_file }}"
+        line: |
+          TMOUT=600
+          export TMOUT       
+        state: present
+        create: yes
+        owner: root
+        group: root
+        mode: 0640 
+      register: file_updated
+  
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_updated.failed == false
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

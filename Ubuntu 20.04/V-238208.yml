@@ -1,0 +1,57 @@
+---
+
+- set_fact:
+    stig_id: V-238208
+
+- local_action: lineinfile regexp='^V-238208' path="{{ output_path }}" state=absent
+
+- name: detect any occurrence of "NOPASSWD" or "!authenticate" found in /etc/sudoers file 
+  block: 
+
+    - name: check files
+      become: true
+      shell: egrep -iR '(nopasswd|!authenticate)' /etc/sudoers /etc/sudoers.d/ | cut -d':' -f1
+      register: bad_files
+
+    - set_fact:
+        stig_text: "{{ stig_id }} FAILED. Found insecure sudo access."
+      when: bad_files.stdout_lines | length > 0
+
+    - command: /bin/false
+      when: bad_files.stdout_lines | length > 0
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+
+  rescue:
+
+    - name: remove any occurrence of "NOPASSWD" or "!authenticate"
+      become: true
+      lineinfile:
+        path: "{{ item }}"
+        regexp: '(?i)^(.*)(nopasswd\:|!authenticate\:)(.*)$'
+        line: \1\3
+        state: present
+        backrefs: yes
+        validate: /usr/sbin/visudo -csf %s
+      with_items: "{{ bad_files.stdout_lines }}"
+
+    - name: check files
+      become: true
+      shell: egrep -iR '(nopasswd|!authenticate)' /etc/sudoers /etc/sudoers.d/ | cut -d':' -f1
+      register: check_files
+
+    - set_fact:
+        stig_text: "{{ stig_id }} FAILED. Found insecure sudo access."
+      when: bad_files.stdout_lines | length > 0
+
+    - set_fact:
+        stig_text: "{{ stig_id }} PASSED"
+      when: bad_files.stdout_lines | length == 0
+
+    - debug:
+        var: stig_text
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_text }}" path="{{ output_path }}" create=yes

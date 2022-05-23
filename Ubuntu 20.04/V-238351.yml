@@ -1,0 +1,46 @@
+---
+
+- set_fact:
+    stig_id: V-238351
+    stig_text: "FAILED. Ubuntu system library files aren't group-owned by root."
+
+- local_action: lineinfile regexp='^V-238351' path="{{ output_path }}" state=absent
+
+- name: Verify the system-wide shared library files are group-owned by root.
+  block: 
+    - name: check the shared library files octal bits.
+      become: true
+      shell:  find /lib /usr/lib /lib64 ! -group root -type f -exec stat -c "%n %G" '{}' \;
+      register: lib_files
+      failed_when: lib_files.stdout | length > 0
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: Configure the system library files to be group-owned by root.
+      become: true
+      file:
+        path: "{{ item }}"
+        group: root
+        state: touch
+      with_items: "{{ lib_files.stdout_lines }}"
+      register: file_perms
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_perms.changed
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+
+
+
+
+
+
+

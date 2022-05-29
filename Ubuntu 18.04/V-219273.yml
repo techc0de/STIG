@@ -53,4 +53,3 @@
 
   always:
     - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
-

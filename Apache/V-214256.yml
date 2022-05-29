@@ -1,0 +1,35 @@
+---
+
+- set_fact:
+    stig_id: V-214256
+    stig_text: "Warning and error messages displayed to clients must be modified to minimize the identity of the Apache web server, patches, loaded modules, and directory paths."
+    target_file: /etc/apache2/
+
+- local_action: lineinfile regexp='^V-214256' path="{{ output_path }}" state=absent
+
+- name: Check for "ErrorDocument" directive existence.
+  block: 
+
+    - name: checking for Error Documents
+      shell: grep -ir '^\s\+\ErrorDocument'
+      args:
+        chdir: "{{ target_file }}"        
+      register: error_document
+      failed_when: error_document.rc != 0
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - name: Plan of action
+      debug:
+        msg: "This Apache server needs ErrorDocuments to be added."
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+    
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

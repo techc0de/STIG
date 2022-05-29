@@ -144,7 +144,7 @@ phases:
               grep -ri 'TraceEnable Off' /etc/apache2/
               status=$?
 
-              grep -i 'LogLevel info' /etc/apache2/apache2.conf
+              grep -i '^LogLevel info' /etc/apache2/apache2.conf
               status2=$?
 
               if [ $status -ne 0 ] || [ $status2 -ne 0 ] ; then
@@ -334,6 +334,25 @@ phases:
                 systemctl reload apache2
               fi          
 
+
+      - name: V-214256
+        action: ExecuteBash
+        inputs:
+          commands:
+            - |
+              function add_STIG_message() {
+                echo $1                 
+              }
+
+              # Check for "ErrorDocument" directives existence.
+              status=$(grep -ri "^\s\+\ErrorDocument" /etc/apache2/)
+
+              if [ -z "$status" ]; then
+                add_STIG_message "V-214256: Warning and error messages displayed to clients must be modified to minimize the identity of the Apache web server, patches, loaded modules, and directory paths."
+                add_STIG_message "V-214256: Attention Required: The Apache web server needs ErrorDocuments to be added !"
+              fi
+              
+              
       - name: V-214232
         action: ExecuteBash
         inputs:

@@ -21,7 +21,10 @@
      
     - name: Set the htpasswd permission to '0550'.
       become: true
-      shell: chmod -R 550 /usr/bin/htpasswd
+      file:
+        path: /usr/bin/htpasswd
+        mode: 550
+        state: touch
       register: file_perms_rule 
   
     - set_fact:

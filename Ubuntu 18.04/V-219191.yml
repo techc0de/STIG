@@ -27,12 +27,12 @@
       when: audit_file.stat.exists == False or file.stat.mode != '0750'
 
   rescue:
-
+    # must set perm to 755 so that the logs in /var/log/dvids/ can be read.
     - name: create "{{ target_file }}" if it doesn't exist and change ownership to root.
       become: true
       file:
         path: "{{ target_file }}"
-        mode: 0750
+        mode: 0755
         state: directory
       register: dir_perms_rule 
  
@@ -42,7 +42,7 @@
         path: "{{ target_file }}"
         owner: root
         group: syslog
-        mode: 0750
+        mode: 0755
         state: touch
       register: file_perms_rule 
 
@@ -53,7 +53,7 @@
         create: no
         state: present
         regexp: '^z /var/log 0775(.*)$'
-        line: 'z /var/log 0750 root syslog -'
+        line: 'z /var/log 0755 root syslog -'
         backrefs: yes
       register: 00rsyslog.conf
   
@@ -69,6 +69,3 @@
 
   always:
     - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
-
-
-

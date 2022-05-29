@@ -16,6 +16,7 @@
         path: "{{ target_file }}"
       register: audit_file
 
+    # check for permission mode of 755 instead of 750 for /var/log/dvids to work
     - name: check if target file has mode of 750 or less permissive.
       become: true
       stat:
@@ -24,7 +25,7 @@
 
     - fail:
         msg: "FAILED. {{ target_file }} file does not exist or files permission are incorrect."
-      when: audit_file.stat.exists == False or file.stat.mode != '0750'
+      when: audit_file.stat.exists == False or file.stat.mode != '0755'
 
   rescue:
     # must set perm to 755 so that the logs in /var/log/dvids/ can be read.
@@ -69,3 +70,6 @@
 
   always:
     - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+
+
+

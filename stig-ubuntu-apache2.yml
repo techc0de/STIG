@@ -58,6 +58,7 @@
     - include_tasks: tasks/stig/Apache2/V-214252.yml 
     - include_tasks: tasks/stig/Apache2/V-214253.yml  
     - include_tasks: tasks/stig/Apache2/V-214255.yml  
+    - include_tasks: tasks/stig/Apache2/V-214256.yml     
     - include_tasks: tasks/stig/Apache2/V-214257.yml    
     - include_tasks: tasks/stig/Apache2/V-214258.yml    
     - include_tasks: tasks/stig/Apache2/V-214265.yml 

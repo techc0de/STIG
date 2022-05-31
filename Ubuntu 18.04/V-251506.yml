@@ -12,23 +12,27 @@
 
     - shell: |
         awk -F: '!$2 {print $1}' "{{ target_file }}"
-      register: verify
-      failed_when: verify.rc == 0 
+      register: accounts
+      failed_when: accounts.rc == 0 
 
     - set_fact:
         stig_text: "PASSED"
 
   rescue:
 
-    - name: lock affected accounts
+    - name: Ensure password fields are not empty | Lock account
       become: true
-      shell: "passwd -l {{ item.stdout }}"
-      loop: "{{ verify.results }}"
-      register: file_perms
+      user:
+        name: "{{ item }}"
+        password_lock: yes
+      with_items: "{{ accounts.stdout_lines }}"
+      when:
+        - "{{ accounts.stdout_lines }}"
+
 
     - set_fact:
         stig_text: "PASSED"
-      when: file_perms.changed == true
+      when: lock_accounts.changed == true
 
     - debug:
         msg: "{{ stig_id }} {{ stig_text }}"

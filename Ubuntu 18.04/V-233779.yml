@@ -24,7 +24,7 @@
       become: true
       lineinfile:
         path: "{{ target_file }}"
-        regexp: '^(.*)X11Forwarding(.*)$'
+        regexp: '^X11Forwarding|^#X11Forwarding'
         line: X11Forwarding no
         state: present
         create: no

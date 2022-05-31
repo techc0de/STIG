@@ -32,8 +32,7 @@
         group: root
         mode: 0600
         state: present
-        create: yes
-        regexp: '^#*\s*minlen.*$'
+        regexp: '^minlen|^# minlen'
         line: minlen=15
       register: file_updated
 

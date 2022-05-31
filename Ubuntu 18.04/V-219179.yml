@@ -31,7 +31,7 @@
     - name: Configure the Ubuntu operating system to enforce a 60-day maximum password lifetime.
       lineinfile:
         path: "{{ target_file }}"
-        regexp: '^PASS_MAX_DAYS(.*)$'
+        regexp: '^PASS_MAX_DAYS|^#PASS_MAX_DAYS'
         line: PASS_MAX_DAYS 60
         backrefs: yes
       register: file_updated

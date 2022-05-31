@@ -33,7 +33,7 @@
         mode: 0600
         state: present
         create: yes
-        regexp: '^(.*)PASS_MIN_DAYS(.*)$'
+        regexp: '^PASS_MIN_DAYS|^#PASS_MIN_DAYS'
         line: 'PASS_MIN_DAYS 1'
       register: file_updated
 

@@ -32,8 +32,7 @@
         group: root
         mode: 0600
         state: present
-        create: yes
-        regexp: '^(.*)ucredit(.*)$'
+        regexp: '^ucredit|^# ucredit'
         line: 'ucredit=-1'
       register: file_updated
 

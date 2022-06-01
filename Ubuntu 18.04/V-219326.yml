@@ -19,17 +19,6 @@
     - command: /bin/false
       when: pw_file.stat.exists == False
 
-    - name: uncomment configuation option
-      become: true
-      lineinfile:
-        path: /etc/default/useradd
-        regexp: '^\#*\s*INACTIVE.*'
-        line: INACTIVE=35
-        state: present
-        create: yes
-        owner: root
-        group: root
-
     - shell: grep '^INACTIVE' /etc/default/useradd
       register: pw_check
       failed_when: pw_check.rc == 2 or pw_check.rc == 3
@@ -50,11 +39,9 @@
       become: true
       lineinfile:
         path: /etc/default/useradd
+        regexp: '^INACTIVE'
         line: INACTIVE=35
         state: present
-        create: yes
-        owner: root
-        group: root
       register: config_updated
 
     - set_fact:

@@ -31,8 +31,13 @@
 
     - name: configure the Ubuntu to use TCP syncookies
       become: true
-      shell: sysctl -w net.ipv4.tcp_syncookies=1
-      register: tcp_fix
+      sysctl:
+        name: net.ipv4.tcp_syncookies
+        value: '1'
+        state: present
+        reload: true
+        ignoreerrors: true
+      register: enable_tcp  
 
     - name: update config file
       become: true
@@ -47,7 +52,6 @@
     - set_fact: 
         stig_text: "PASSED"
       when: 
-        - tcp_fix.rc == 0 
         - config_updated.failed == false
 
     - debug:

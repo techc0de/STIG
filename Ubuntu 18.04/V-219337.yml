@@ -25,19 +25,16 @@
 
   rescue:
 
-    - name: change the firewall status to 'enabled' if it's disabled.        
-      shell: systemctl enable ufw.service
+    - name: Ensure ufw service is enabled       
+      service:
+        name: ufw
+        state: started
+        enabled: true
       register: ufw_enabled_service
   
-    - name: set firewall service to 'running' if it not running.                 
-      shell: systemctl start ufw.service
-      register: ufw_active_running
-
     - set_fact:
         stig_text: "{{ stig_id }} PASSED"
-      when: 
-        - ufw_enabled_service.changed == true
-        - ufw_active_running.changed == true
+      when: ufw_enabled_service.changed | bool
 
     - debug:
         msg: "{{ stig_id }} {{ stig_text }}"

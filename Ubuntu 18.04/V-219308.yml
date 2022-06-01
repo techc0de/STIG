@@ -28,8 +28,8 @@
       become: true
       lineinfile:
         path: "{{ target_file }}"
+        regexp: '^Protocol.*'
         line: Protocol 2
-        regexp: '^#*\s*Protocol.*'
         state: present
       register: update_sshd
 

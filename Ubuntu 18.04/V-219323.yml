@@ -32,8 +32,11 @@
     - name: Install apparmor if it isn't installed.    
       become: true
       apt:
-        name: apparmor
+        name: '{{ item }}'
         state: present
+        with_items:
+          - apparmor
+          - apparmor-utils  
       register: install_pkg
 
     - name: start and enable apparmor service.

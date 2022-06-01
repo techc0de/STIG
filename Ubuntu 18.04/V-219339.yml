@@ -36,8 +36,9 @@
     - name: Configure the Ubuntu operating system to disable using the USB storage kernel module.
       lineinfile:
         path: /etc/modprobe.d/DISASTIG.conf
-        regexp: '^install usb-storage'
+        regexp: "^(#)?install usb-storage(\\s|$)"
         line: 'install usb-storage /bin/true'
+        state: present
         create: yes
       register: module_update
 

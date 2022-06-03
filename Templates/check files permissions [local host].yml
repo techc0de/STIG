@@ -13,26 +13,15 @@
   tasks:
     - name:
       block:
-        - name: verify the logs ownership
-          find:
-            paths: "{{ target_file }}"
-            patterns: "*.txt"
-          register: ownership
-          failed_when: ownership.files | selectattr('pw_name', '!=', 'root') | list
-
-        - name: verify the logs group ownership
-          find:
-            paths: "{{ target_file }}"
-            patterns: "*.txt"
-          register: group
-          failed_when: group.files | selectattr('gr_name', '!=', 'adm') | list
-
-        - name: verify the logs permissions
+        - name: verify the files' permissions and ownership
           find:
             paths: "{{ target_file }}"
             patterns: "*.txt"
           register: permissions
-          failed_when: permissions.files | selectattr('mode', '!=', '0640') | list
+          failed_when: >
+            (permissions.files | selectattr('pw_name', '!=', 'root') | list) or
+            (permissions.files | selectattr('gr_name', '!=', 'adm') | list) or
+            (permissions.files | selectattr('mode', '!=', '0640') | list)
 
         - set_fact:
             stig_text: "{{ stig_id }} PASSED"
@@ -44,13 +33,15 @@
             path: "{{ item.path }}"
             owner: root
             group: adm
-            mode: 0750
-          with_items: "{{ ownership.files }}"
+            mode: 0640
+          loop: "{{ permissions.files }}"
+          loop_control:
+            label: "{{ item.path }}"
           register: change_perms
 
         - set_fact:
             stig_text: "PASSED"
-          when: change_perms.changed == true
+          when: change_perms.changed | bool
 
         - debug:
             msg: "{{ stig_id }} {{ stig_text }}"

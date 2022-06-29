@@ -1,0 +1,62 @@
+---
+
+- set_fact:
+    stig_id: V-238340
+    stig_text: "FAILED. /var/log directory doesn't have mode 0750 or less permissive."
+    target_file: /var/log
+
+- local_action: lineinfile regexp='^V-238340' path="{{ output_path }}" state=absent
+
+- name: Verify that the Ubuntu operating system configures the /var/log directory with a mode of 750 or less permissive.
+  block: 
+
+    - name: check for /var/log file
+      become: true
+      stat:
+        path: "{{ target_file }}"
+      register: audit_file
+
+    - name: check if target file has mode of 750 or less permissive.
+      become: true
+      stat:
+        path: "{{ target_file }}"
+      register: file
+
+    - fail:
+        msg: "FAILED. {{ target_file }} file does not exist or files permission are incorrect."
+      when: file.stat.mode != '0755'
+
+  rescue:
+    # must set the mode to 755 so the /dvids/ folder can be read
+    - name: configure the target file to have permissions mode of 0755.
+      become: true
+      file:
+        path: "{{ target_file }}"
+        owner: root
+        group: root
+        mode: 0755
+        state: touch
+      register: file_perms_rule 
+
+    - name: set /var/log/ permission permanent in /usr/lib/tmpfiles.d/00rsyslog.conf
+      become: true
+      replace:
+        path: /usr/lib/tmpfiles.d/00rsyslog.conf
+        regexp: 'z /var/log 0775.*'
+        replace: "z /var/log 0755 root syslog -"
+      register: 00rsyslog
+  
+    - set_fact:
+        stig_text: "PASSED"
+      when: 
+        - file_perms_rule.changed | true
+        - 00rsyslog.changed | true
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+
+
+

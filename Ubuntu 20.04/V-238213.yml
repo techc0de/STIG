@@ -33,14 +33,14 @@
         regexp: '^(.*)ClientAliveInterval(.*)$'
         state: absent
         create: yes
-        backup: yes
+        backup: no
 
     - name: Configure the Ubuntu operating system to automatically terminate inactive SSH sessions after 10 min. of inactivity.
       lineinfile:
         path: "{{ target_file }}"
         line: ClientAliveInterval 600      
         state: present
-        create: yes
+        create: no
       register: file_updated
 
     - name: restart SSH dameon

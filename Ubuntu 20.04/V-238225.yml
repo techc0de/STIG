@@ -15,7 +15,7 @@
       register: rules_file
 
     - name: Verify if the pwquality configuration file enforces a minimum 15-character password length.
-      shell: grep -i 'minlen=15' "{{ target_file }}"
+      shell: grep -i 'minlen.*15' "{{ target_file }}"
       register: audit_check
       failed_when: audit_check.rc != 0
 

@@ -19,12 +19,9 @@
     - command: /bin/false
       when: login_file.stat.exists == False
 
-    - shell: grep -i "^umask" "{{ target_file }}"
+    - shell: "grep -i umask.*077 {{ target_file }}"
       register: umask
       failed_when: umask.rc != 0
-
-    - command: /bin/false
-      when: umask.stdout.find('077') == -1
 
     - set_fact:
         stig_text: "{{ stig_id }} PASSED"

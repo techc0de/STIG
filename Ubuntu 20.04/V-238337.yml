@@ -18,7 +18,7 @@
 
   
     - name: check if audit logs have 640 mode or less permissive
-      shell: find /var/log -perm /137 -type f -exec stat -c "%n %a" {} \;
+      shell: find /var/log -perm /137 -type f;
       register: file_perm
       failed_when: file_perm.rc == 0     
 
@@ -26,16 +26,6 @@
         stig_text: "PASSED"
 
   rescue:
-
-    - name: create '/var/log' if it doesn't exist and change ownership to root.
-      become: true
-      file:
-        path: "{{ target_file }}"
-        owner: root
-        group: root
-        mode: 0640
-        state: touch
-      register: dir_perms_rule 
      
     - name: configure the all log files under /var/log/ dir permission mode to 640.
       become: true
@@ -44,9 +34,8 @@
   
     - set_fact:
         stig_text: "PASSED"
-      when: 
-        - file_perms_rule.changed == true
-        - dir_perms_rule.changed == true
+      when: file_perms_rule.changed | true
+
 
     - debug:
         msg: "{{ stig_id }} {{ stig_text }}"

@@ -2,45 +2,54 @@
 
 - set_fact:
     stig_id: V-238350
-    stig_text: "FAILED. Ubuntu system library files aren't owned by root."
+    stig_text: 'FAILED. The Ubuntu operating system library files must be owned by root user.'
 
-- local_action: lineinfile regexp='^V-238350' path="{{ output_path }}" state=absent
+- local_action: lineinfile regexp='^V-238351' path="{{ output_path }}" state=absent
 
-- name: Verify the system-wide shared library directories have mode 0755 or less permissive.
+- name: verify that the "{{ target_file }}" file is exist.
   block: 
-    - name: check the shared library directories octal bits.
+
+    - name: verify the target files
       become: true
-      shell: find /lib /usr/lib /lib64 ! -user root -type d -exec stat -c "%n %U" '{}' \;
-      register: lib_files
-      failed_when: lib_files.stdout | length > 0
+      stat:
+        path: "{{ item }}"
+      loop:
+        - /lib/
+        - /usr/lib/
+        - /lib64/
+      register: files
+
+    - name: Verify the following files are owned by root.
+      loop: |
+        {{ files.results | map(attribute='item')
+        | zip(files.results | map(attribute='stat.mode'))
+        | list }}
+
+      assert:
+        that: item.1 == 'root'
+      loop_control:
+        label: "{{ item.0 }}"
 
     - set_fact:
         stig_text: "PASSED"
 
   rescue:
 
-    - name: Configure the system library files to be protected from unauthorized access.
+    - name: set system library files to be owned by root.
       become: true
       file:
-        path: "{{ item }}"
+        path: "{{ item.item }}"
         owner: root
-        state: touch
-      with_items: "{{ lib_files.stdout_lines }}"
-      register: file_perms
-
+        state: "{{ 'file' if item.stat.exists else 'touch' }}"
+      loop: "{{ files.results }}"
+      register: file_perms_rule 
+  
     - set_fact:
         stig_text: "PASSED"
-      when: file_perms.changed
+      when: file_perms_rule.changed == true
 
     - debug:
         msg: "{{ stig_id }} {{ stig_text }}"
 
   always:
     - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
-
-
-
-
-
-
-

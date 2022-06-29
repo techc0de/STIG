@@ -3,7 +3,7 @@
 - set_fact:
     stig_id: V-238217
     stig_text: "FAILED. Ubuntu does not implement DoD-approved encryption to protect the confidentiality of remote access sessions."
-    target_file: /etc/pam_pkcs11/pam_pkcs11.conf
+    target_file: /etc/ssh/sshd_config
 
 - local_action: lineinfile regexp='^V-238217' path="{{ output_path }}" state=absent
 

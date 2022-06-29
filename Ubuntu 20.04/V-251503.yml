@@ -1,0 +1,34 @@
+---
+
+- set_fact:
+    stig_id: V-251503
+    stig_text: 'FAILED. The Ubuntu operating system must not have accounts configured with blank or null passwords.'
+    target_file: /etc/pam.d/common-password
+
+- local_action: lineinfile regexp='^V-251503' path="{{ output_path }}" state=absent
+
+- name: check for blank passwords
+  block: 
+
+    - shell: |
+        awk -F: '!$2 {print $1}' /etc/shadow
+      register: verify
+      failed_when: verify.rc == 0 
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+
+    - set_fact:
+        stig_text: "Failed. Please set the affected accounts with password or lock them."
+
+    - debug: 
+        var: verify.stdout_lines
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

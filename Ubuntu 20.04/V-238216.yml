@@ -21,7 +21,7 @@
       become: true
       shell: grep -i macs "{{ target_file }}"
       register: shell_check
-      failed_when: shell_check.stdout != "MACs hmac-sha2-512,hmac-sha2-256"
+      failed_when: shell_check.rc != 0
 
     - set_fact:
         stig_text: "PASSED"

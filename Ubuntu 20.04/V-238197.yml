@@ -17,7 +17,7 @@
     - name: check for banner-message rule
       shell: grep banner-message-enable "{{ target_file }}"
       register: audit_check
-      failed_when: audit_check.stdout_lines != "banner-message-enable=true"
+      failed_when: audit_check.rc != 0
 
     - assert:
         that: audit_check.stdout_lines.find(#) == -1

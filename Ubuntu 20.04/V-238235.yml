@@ -10,41 +10,37 @@
 - name: Check for common-auth file existence
   block: 
 
-    - name: check for file existence
-      shell: grep -i faillock "{{ target_file }}"
+    - name: check for faillock
+      shell: grep faillock "{{ target_file }}"
       register: pam_check
       failed_when: pam_check.rc != 0
 
-- name: Check for pam_faillock module
-  block: 
-
-    - name: check for directives existence
+    - name: check for faillock directives
       shell: egrep 'silent|audit|deny|fail_interval|unlock_time' /etc/security/faillock.conf
-      register: directives
-      failed_when: directives.rc != 0
+      register: options_check
+      failed_when: options_check.rc != 0        
 
     - set_fact:
         stig_text: "PASSED"
 
   rescue:
 
-    - name: enable authfail directive
+    - name: add authfail module
       become: true
       pamd:
         path: '/etc/pam.d/'
         name: common-auth
         type: auth
         control: '[success=1 default=ignore]'
-        module_path: 'pam_unix.so'
-        module_arguments: 'nullok'
+        module_path: pam_unix.so
         new_type: auth
-        new_control: '[default=die]'
-        new_module_path: pam_faillock.so
-        new module_arguments: authfail
+        new_control: '[default=die]' 
+        new_module_path: pam_faillock.so 
+        module_arguments: authfail
         state: after
-      register: authfail
+      register: authfail     
 
-    - name: enable authsucc directive
+    - name: add authsucc module
       become: true
       pamd:
         path: '/etc/pam.d/'
@@ -52,11 +48,12 @@
         type: auth
         control: '[default=die]'
         module_path: pam_faillock.so
-        module_arguments: authfail
         new_type: auth
-        new_control: pam_faillock.so 
-        new_module_path: authsucc
+        new_control: sufficient
+        new_module_path: pam_faillock.so
+        module_arguments: authsucc
         state: after
+      register: authsucc       
 
     - name: Configure audit value
       become: true
@@ -115,14 +112,13 @@
 
     - set_fact:
         stig_text: "PASSED"
-      when: 
+      when:   
         - authfail.failed == false
         - authsucc.failed == false
-        - audit.failed == false
         - silent.failed == false  
         - deny.failed == false  
         - fail_interval.failed == false  
-        - unlock_time.failed == false    
+        - unlock_time.failed == false  
 
     - debug:
         msg: "{{ stig_id }} {{stig_text}}"

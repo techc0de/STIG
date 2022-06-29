@@ -20,11 +20,7 @@
      
     - name: configure the system commands to be protected from unauthorized access.
       become: true
-      file:
-        path: "{{ item }}"
-        mode: 0755
-        state: touch
-      with_items: "{{ check_files.stdout_lines }}"
+      shell: find /bin /sbin /usr/bin /usr/sbin /usr/local/bin /usr/local/sbin -perm /022 -type f -exec chmod 755 '{}' \;
       register: file_perms
   
     - set_fact:

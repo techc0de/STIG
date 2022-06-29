@@ -2,7 +2,7 @@
 
 - set_fact:
     stig_id: V-238228
-    stig_text: "Failed. Ubuntu 18 doesn't use pwquality."
+    stig_text: "Failed. Ubuntu doesn't use pwquality."
     target_file: /etc/pam.d/common-password
 
 - local_action: lineinfile regexp='^V-238228' path="{{ output_path }}" state=absent
@@ -69,11 +69,10 @@
         type: password
         control: '[success=1 default=ignore]'
         module_path: pam_unix.so
-        module_arguments: obsecure sha512
         new_type: password
         new_control: requisite
         new_module_path: pam_pwquality.so
-        new module_arguments: retry=3
+        module_arguments: retry=3
         state: before
       register: config_updated
       

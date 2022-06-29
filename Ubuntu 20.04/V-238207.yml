@@ -38,14 +38,12 @@
         regexp: '^(.*)TMOUT(.*)$'
         state: absent
         create: yes
-        backup: yes
+        backup: no
 
     - name: Configure the Ubuntu operating system to initiate a session logout after a 15-minute period of inactivity.
       lineinfile:
         path: "{{ target_file }}"
-        line: |
-          TMOUT=600
-          export TMOUT       
+        line: TMOUT=600   
         state: present
         create: yes
         owner: root

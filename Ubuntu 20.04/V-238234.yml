@@ -32,13 +32,13 @@
         name: common-password
         type: password
         control: '[success=1 default=ignore]'
-        module_path: 'pam_unix.so'
-        module_arguments: 'obsecure sha512'
-        new_type: password
-        new_control: '[success=1 default=ignore]'
-        new_module_path: pam_unix.so
-        module_arguments: 'obsecure sha512 shadow remember=5 rounds=5000'
-        state: after
+        module_path: pam_unix.so
+        module_arguments: 'obsecure 
+          sha512 
+          shadow 
+          remember=5 
+          rounds=5000'
+        state: updated
       register: config_updated
 
     - set_fact:

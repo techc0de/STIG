@@ -6,27 +6,50 @@
 
 - local_action: lineinfile regexp='^V-238378' path="{{ output_path }}" state=absent
 
-- name: Ensure system directories are own by root group.
+- name: verify that the "{{ target_file }}" file is exist.
   block: 
-    - name: check that the system command files are group-owned by "root"
+
+    - name: verify the target files
       become: true
-      shell: find -L /bin /sbin /usr/bin /usr/sbin /usr/local/bin /usr/local/sbin ! -group root -type f -exec stat -c "%n %G" '{}' \;
-      register: lib_files
-      failed_when: lib_files.rc != 0 or lib_files.stdout != ''
+      stat:
+        path: "{{ item }}"
+      loop:
+        - /bin/
+        - /sbin
+        - /usr/bin
+        - /usr/sbin
+        - /usr/local/bin
+        - /usr/local/sbin
+      register: files
+
+    - name: Verify the following files group-owned by root
+      loop: |
+        {{ files.results | map(attribute='item')
+        | zip(files.results | map(attribute='stat.mode'))
+        | list }}
+
+      assert:
+        that: item.1 == 'root'
+      loop_control:
+        label: "{{ item.0 }}"
 
     - set_fact:
         stig_text: "PASSED"
 
   rescue:
 
-    - name: configure the system commands to be protected from unauthorized access.
+    - name: change the files group-ownership to root.
       become: true
-      shell: find /bin /sbin /usr/bin /usr/sbin /usr/local/bin /usr/local/sbin ! -group root -type f ! -perm /2000 -exec chgrp root '{}' \;
-      register: file_perms
-
+      file:
+        path: "{{ item.item }}"
+        group: root
+        state: "{{ 'file' if item.stat.exists else 'touch' }}"
+      loop: "{{ files.results }}"
+      register: file_perms_rule 
+  
     - set_fact:
         stig_text: "PASSED"
-      when: file_perms.changed == true
+      when: file_perms_rule.changed | bool
 
     - debug:
         msg: "{{ stig_id }} {{ stig_text }}"

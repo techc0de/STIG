@@ -1,0 +1,57 @@
+---
+
+- set_fact:
+    stig_id: SNMP
+    stig_text: "FAILED. Operating System has SNMP string set to public."
+    target_file: /etc/snmp/snmpd.conf
+
+- local_action: lineinfile regexp='^SNMP' path="{{ output_path }}" state=absent
+
+- name: Check for stig.rules config file existence
+  block: 
+    - name: check for the file
+      stat:
+        path: "{{ target_file }}"
+      register: rules_file
+
+    - name: check for snmp installation
+      shell: dpkg -l | grep snmp
+      register: pkg_check
+      failed_when: pkg_check.rc == 0
+
+    - name: check if snmp string is set to 'public'
+      shell: grep -i 'rocommunity public' "{{ target_file }}"
+      register: string
+      failed_when: string.rc == 0
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+  
+    - name: configure the snmp set to private
+      become: true
+      replace:
+        path: "{{ target_file }}"
+        regexp: '\spublic'
+        replace: ' Go_DVIDs'
+        backup: yes
+      register: file_updated
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: 
+        - file_updated.failed == false    
+
+    - name: reload SNMP service
+      service:
+        name: snmpd
+        state: restarted
+      ignore_errors: true
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+

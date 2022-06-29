@@ -1,0 +1,24 @@
+--- 
+
+ansible_ssh_user: tn_tech
+ansible_ssh_private_key_file: /home/thuan/.ssh/dvids-base.pem
+ansible_become_pass: '{{ ansible }}'
+linux_admin_user_list:
+  - tn_tech
+  - gl_tech
+  - rw_tech
+  - rb_tech
+  - bm_tech
+  - ia_scanner
+
+linux_user_list:
+  - glawas
+  - rwhitehurst
+  - rboykin
+  - sdye
+  - roden
+  - sgrifenhagen
+  - tolatunde
+  - swatson
+  - bmorton
+  - bleighty

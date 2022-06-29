@@ -1,0 +1,46 @@
+install dropbear 2017.75:
+sudo apt-get install -y dropbear
+
+
+Ubuntu 16:
+http://archive.ubuntu.com/ubuntu/pool/universe/d/dropbear/dropbear-bin_2016.72-1_amd64.deb
+http://archive.ubuntu.com/ubuntu/pool/universe/d/dropbear/dropbear-initramfs_2016.72-1_amd64.deb
+http://archive.ubuntu.com/ubuntu/pool/universe/d/dropbear/dropbear-run_2016.72-1_amd64.deb
+
+
+
+Ubuntu 18
+http://archive.ubuntu.com/ubuntu/pool/universe/d/dropbear/dropbear-bin_2017.75-3build1_amd64.deb
+http://archive.ubuntu.com/ubuntu/pool/universe/d/dropbear/dropbear-run_2017.75-3build1_all.deb
+http://archive.ubuntu.com/ubuntu/pool/universe/libt/libtomcrypt/libtomcrypt1_1.18.1-1_amd64.deb
+http://archive.ubuntu.com/ubuntu/pool/main/libt/libtommath/libtommath1_1.0.1-1_amd64.deb
+http://archive.ubuntu.com/ubuntu/pool/universe/d/dropbear/dropbear-initramfs_2017.75-3build1_all.deb
+
+
+Ubuntu 20
+http://archive.ubuntu.com/ubuntu/pool/universe/d/dropbear/dropbear-bin_2019.78-2build1_amd64.deb
+http://archive.ubuntu.com/ubuntu/pool/main/libt/libtommath/libtommath1_1.2.0-3_amd64.deb
+http://archive.ubuntu.com/ubuntu/pool/universe/libt/libtomcrypt/libtomcrypt1_1.18.2-3_amd64.deb
+http://archive.ubuntu.com/ubuntu/pool/universe/d/dropbear/dropbear-initramfs_2019.78-2build1_all.deb
+http://archive.ubuntu.com/ubuntu/pool/universe/d/dropbear/dropbear-run_2019.78-2build1_all.deb
+
+
+
+
+
+uninstall dropbear:
+apt --fix-broken install
+sudo apt-get remove dropbear
+sudo apt-get autoremove dropbear
+sudo apt-get autoremove --purge dropbear
+
+
+Ubuntu 18 dropbear installation dir:
+/usr/sbin/dropbear
+
+
+keys:
+/etc/dropbear/
+
+
+source: https://ubuntu.pkgs.org/18.04/ubuntu-universe-amd64/dropbear-initramfs_2017.75-3build1_all.deb.html

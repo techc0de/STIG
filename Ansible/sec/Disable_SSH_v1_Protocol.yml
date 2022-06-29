@@ -1,0 +1,46 @@
+---
+
+- set_fact:
+    stig_id: SSH_v1.0
+    stig_text: "FAILED. System has SSH Protocol Version 1 Supported."
+    target_file: /etc/ssh/sshd_config
+
+- local_action: lineinfile regexp='^SSH_v1.0' path="{{ output_path }}" state=absent
+
+- name: Check for ssh v1.0 compatibility
+  block: 
+    - name: check the protocol
+      shell: grep -iE 'protocol 2,1|protocol 1' "{{ target_file }}"
+      register: ssh_check
+      failed_when: ssh_check.rc == 0
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+  
+    - name: change ssh protocol to support only v2
+      become: true
+      lineinfile:
+        path: "{{ target_file }}"
+        state: present
+        regexp: '^(.*)Protocol(.*)$'
+        line: 'Protocol 2'
+      register: file_updated
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_updated.changed
+
+    - name: reload sshd service
+      service:
+        name: ssh
+        state: restarted
+      ignore_errors: true
+
+    - debug:
+        msg: "{{ stig_id }} {{stig_text}}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+

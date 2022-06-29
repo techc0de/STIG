@@ -1,0 +1,8 @@
+1. Log into the Cisco router
+
+2. enter the following command (this will disable SSH v1): 
+   ip ssh version 2
+
+3. verify ssh config:
+    show ssh
+    show ip ssh

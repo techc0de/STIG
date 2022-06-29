@@ -1,0 +1,15 @@
+location:
+/snap/amazon-ssm-agent/current/amazon-ssm-agent
+
+profiles:
+/var/lib/snapd/apparmor/profiles/snap.amazon-ssm-agent.amazon-ssm-agent
+
+
+exclude ssm agent:
+ln -s /etc/apparmor.d/snap.amazon-ssm-agent.amazon-ssm-agent /etc/apparmor.d/disable/
+apparmor_parser -R /etc/apparmor.d/snap.amazon-ssm-agent.amazon-ssm-agent
+
+
+
+
+source: https://itectec.com/ubuntu/ubuntu-how-to-disable-apparmor-for-mysql/

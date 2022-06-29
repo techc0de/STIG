@@ -1,0 +1,39 @@
+1. install the STIGS with Ansible on the new EC2 image.
+2. next, go to the /etc/audit/rules.d/stig.rules
+3. remove the existence rules and add the provided rules from the folder.
+4. Do Not add the PAM common-auth or common-password rules yet ! otherwise, you can't set the password afterward
+5. go to ImageBuilder, and run the pipeline
+6. ensure the ubuntu user's password is set and the external block are mounted
+7. go to the EC2, and add the PAM module rules.
+8. run: 'pam-auth-update' after made changes to the PAM files, select no override option
+9. done
+
+
+
+*DOD Root cert*
+
+1. https://dl.dod.cyber.mil/wp-content/uploads/pki-pke/zip/certificates_pkcs7_DoD.zip
+
+2. Download and extract it to /etc/ssl/certs/
+
+=================================================================================================================
+
+common commands:
+
+run playbook:
+sudo ansible-playbook stig-ubuntu-apache2.yml --ask-vault-pass
+
+run playbook with specific host:
+sudo ansible-playbook stig-ubuntu-apache2.yml -l '34.237.2.41' --ask-vault-pass
+
+view secret vault:
+sudo ansible-vault view private/passwords.yml
+
+edit secret vault:
+sudo ansible-vault edit private/passwords.yml
+
+decrypt secret vault:
+sudo ansible-vault decrypt passwords.yml
+
+edit Ansible hosts:
+sudo nano /etc/ansible/hosts

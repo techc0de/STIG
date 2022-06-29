@@ -1,0 +1,76 @@
+STIG: V-219147
+CAT I
+
+https://www.stigviewer.com/stig/canonical_ubuntu_18.04_lts/2021-11-29/finding/V-219147
+
+Description:
+Ubuntu operating systems booted with a BIOS must require authentication upon booting into single-user and maintenance modes.
+
+Annonation:
+Can't set the password for GRUB because it fails the EC2 health check upon start up and interrupt the boot process.
+As the result, the EC2 can't be used.
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+STIG: V-219185
+
+CAT II
+
+https://www.stigviewer.com/stig/canonical_ubuntu_18.04_lts/2021-11-29/finding/V-219185
+
+Description:
+The Ubuntu operating system must require users to re-authenticate for privilege escalation and changing roles.
+
+Annotations:
+
+Not set password for ssm-user because this account user can only be accessed via AWS web console.
+- user must be authenticated with a Two-Factor Aunthentication device before he/she can log into the AWS web console
+- Amazon SSM agent also record whoever logs into the session console: /var/log/amazon/ssm/amazon-ssm-agent.log
+- the log can also be viewed in the AWS console: Systems Manager > Session Manager
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+V-219188
+
+Description:
+The Ubuntu operating system must generate error messages that provide information necessary for corrective actions without revealing information that could be exploited by adversaries.
+
+Annotations:
+
+Default files permission is 644.
+
+By limit the files in the sub directory permission to 640, it prevents other user such as www-data unable to read/write files.
+Our application use 'www-data' user to read/write files and record activities to log.
+
+e.g.:
+/var/log/dvids/auth.log
+/var/log/dvids/powerpoint-reports.log
+/var/log/dvids/badimages.log
+/var/log/dvids/audio.log
+/var/log/dvids/greetings.log
+/var/log/dvids/cms.log
+/var/log/clamaav/
+/var/log/amazon/ssm/amazon-ssm-agent.log
+/var/log/php.log 
+/var/log/amazon-cloudwatch-agent.log 
+------------------------------------------------------------------------------------------------------------------------------------------------------------
+V-219191
+
+https://www.stigviewer.com/stig/canonical_ubuntu_18.04_lts/2021-11-29/finding/V-219191
+
+Description:
+The Ubuntu operating system must configure the /var/log directory to have mode 0750 or less permissive.
+
+
+Annotations:
+
+Can't set the /var/log/ to an octal permission of 750.
+Default user ownership is root:syslog .
+
+By limit the directory permission to 750, it prevents other user such as www-data unable to read/write files and folders.
+Our application use 'www-data' user to read/write files and record activities to log.
+By doing so, our web application CMS not able to load and receive a gateway error.
+e.g.:
+/var/log/dvids/
+/var/log/clamaav/
+

@@ -1,0 +1,93 @@
+---
+
+- set_fact:
+    stig_id: Install Desktop Central Engine Agent
+    stig_text: "FAILED. Ubuntu failed to install DC Engine Agent."
+    file_src: /home/thuan/projects/ansible-stigs/DCLinuxAgent
+    remote_path: /usr/local
+
+- local_action: lineinfile regexp='^dc-agent' path="{{ output_path }}" state=absent
+
+- name: Check if DC Agent is installed.
+  block:      
+  
+    - name: validating if the package is installed.
+      stat:
+        path: /usr/local/desktopcentralagent
+      register: file_details 
+      failed_when: not file_details.stat.exists
+
+    - name: Ensure the folder is not empty.
+      shell: |
+          ls -la /usr/local/desktopcentralagent
+      register: contents
+      failed_when: contents.stdout_lines | length < 0 or contents.rc != 0
+    
+    - set_fact:
+        stig_text: "DC Engine Agent is not installed."
+        
+    - set_fact:
+        stig_text: "PASSED"
+    
+  rescue:
+
+    - name: Download DC Engine agent from shared drive to local host.
+      become: true
+      copy:
+        src: "{{ file_src }}"
+        dest: "{{ remote_path }}"
+        owner: root
+        group: root
+        mode: 0755
+      register: downloads
+
+    - name: Make DCLinuxAgent installer executable 
+      become: true
+      file:
+        path: "{{ remote_path }}/DCLinuxAgent/"
+        state: directory
+        mode: 0755
+        recurse: yes
+      register: permissions
+      when: downloads.changed
+
+    - name: Install DC Engine agent.
+      become: true
+      shell: |
+        ./DesktopCentral_LinuxAgent.bin
+      args:
+        chdir: "{{ remote_path }}/DCLinuxAgent/"
+        creates: install_agent.txt
+      register: installation
+
+    - name: Verify the agent is installed.
+      become: true
+      stat:
+        path: /usr/local/desktopcentralagent
+      when: installation.changed
+      register: agent_path 
+
+    - name: delete DC installer after it installed
+      file:
+        path: "{{ remote_path }}/DCLinuxAgent/"
+        state: absent
+      when: agent_path.stat.exists
+
+    - set_fact:
+        stig_text: "PASSED"
+      when: 
+        - installation.changed
+        - agent_path.stat.exists
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes
+
+
+
+
+
+
+

@@ -48,9 +48,24 @@
         line: active = yes
       register: file_updated
 
+    - name: set audisp-remote plugin to send audit logs to a different system
+      # use AWS CloudWatch to store logs remotely
+      lineinfile:
+        path: /etc/audisp/audisp-remote.conf
+        owner: root
+        group: root
+        state: present
+        create: no
+        regexp: 'remote_server.*'
+        line: 'remote_server = 127.0.0.1'
+      register: remote      
+
+
     - set_fact:
         stig_text: "PASSED"
-      when: file_updated.failed == false
+      when: 
+        - file_updated.changed | bool
+        - remote.changed | bool
 
     - debug:
         msg: "{{ stig_id }} {{stig_text}}"

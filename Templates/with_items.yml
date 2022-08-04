@@ -1,0 +1,69 @@
+- name: "MANUAL | 4.2.1.6 | PATCH | Ensure remote rsyslog messages are only accepted on designated log hosts"
+  block:
+      - name: "MANUAL | 4.2.1.6 | PATCH | Ensure remote rsyslog messages are only accepted on designated log hosts | When not a log host"
+        replace:
+            path: /etc/rsyslog.conf
+            regexp: '({{ item }})'
+            replace: '#\1'
+        with_items:
+            - '^(\$ModLoad)'
+            - '^(\$InputTCPServerRun)'
+        notify: restart rsyslog
+        when: not ubtu18cis_system_is_log_server
+
+      - name: "MANUAL | 4.2.1.6 | PATCH | Ensure remote rsyslog messages are only accepted on designated log hosts | When a log server"
+        lineinfile:
+            path: /etc/rsyslog.conf
+            regexp: "{{ item.regexp }}"
+            line: "{{ item.line }}"
+        with_items:
+            - { regexp: '^\$ModLoad|^#\$ModLoad', line: '$ModLoad imtcp' }
+            - { regexp: '^\$InputTCPServerRun|^#\$InputTCPServerRun', line: '$InputTCPServerRun 514' }
+        notify: restart rsyslog
+        when: ubtu18cis_system_is_log_server
+
+
+      - name: "MANUAL | 4.3 | PATCH | Ensure logrotate is configured | Get logrotate files"
+        find:
+            paths: /etc/logrotate.d/
+        register: logrotate_d
+
+      - name: Changing logrotation to daily in all logrotate-config files
+        replace:
+            path: "{{ item.path }}"
+            regexp: '^(\s*)(daily|weekly|monthly|yearly)$'
+            replace: "\\1daily"
+        loop: "{{ [ { 'path': '/etc/logrotate.conf' } ] + logrotate_d.files }}"
+        loop_control:
+          label: "{{ item.path }}"
+
+
+      - name: "Ansible Lineinfile Multiple Lines"
+        become: yes
+        become_user: root
+        lineinfile:
+          path: /etc/httpd/conf/httpd.conf
+          # Line to Search/Match against
+          regexp: '{{item.From}}'
+          # Line to Replace with
+          line: '{{item.To}}'
+          state: present  
+          # To validate the Changes Before Committing/Saving
+          validate: "httpd -t -f %s"
+        with_items:
+        - { From: 'ServerName www.middlewareinventory.com:80', To: 'ServerName www.devopsjunction.com:80'}
+        - { From: 'ServerAdmin aksarav@middlewareinventory.com', To: 'ServerAdmin aksarav@devopsjunction.com'}
+        - { From: '^LogLevel .*', To: 'LogLevel debug'}
+        - { From: '^DocumentRoot .*', To: 'DocumentRoot "/var/www/devopsjunction"'}            
+
+      - name: 3.1.1 Disable IPv6
+        sysctl:
+          name: "{{ item.name }}"
+          value: "{{ item.value }}"
+          sysctl_set: true
+          state: present
+          reload: true
+        with_items:
+          - { name: net.ipv6.conf.all.disable_ipv6, value: 1 }
+          - { name: net.ipv6.conf.default.disable_ipv6, value: 1 }
+          - { name: net.ipv6.route.flush, value: 1 }        

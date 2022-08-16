@@ -1,0 +1,43 @@
+---
+
+- set_fact:
+    stig_id: V-238337
+    stig_text: 'FAILED. System log files do not have the permission set to 640.'
+    target_file: /var/log
+    
+- local_action: lineinfile regexp='^V-238337' path="{{ output_path }}" state=absent
+
+- name: verify that the "{{ target_file }}" file is exist.
+  block: 
+
+    - name: check for files
+      become: true
+      stat:
+        path: "{{ target_file }}"
+      register: audit_files
+  
+    - name: check if audit logs have 640 mode or less permissive
+      shell: find /var/log -perm /137 -type f
+      register: file_perm
+      failed_when: file_perm.rc == 0     
+
+    - set_fact:
+        stig_text: "PASSED"
+
+  rescue:
+     
+    - name: configure the all log files under /var/log/ dir permission mode to 640.
+      become: true
+      shell: find "{{ target_file }}" -perm /137 -type f -exec chmod 640 '{}' \;
+      register: file_perms_rule 
+  
+    - set_fact:
+        stig_text: "PASSED"
+      when: file_perms_rule.changed | true
+
+
+    - debug:
+        msg: "{{ stig_id }} {{ stig_text }}"
+
+  always:
+    - local_action: lineinfile line="{{ stig_id }} {{ stig_text }}" path="{{ output_path }}" create=yes

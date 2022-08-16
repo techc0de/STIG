@@ -3,7 +3,7 @@
 - set_fact:
     stig_id: V-251507
     stig_text: 'FAILED. The Ubuntu operating system must not allow accounts configured with blank or null passwords.'
-    target_file: /etc/pam.d/common_password
+    target_file: /etc/pam.d/common-password
 
 - local_action: lineinfile regexp='^V-251507' path="{{ output_path }}" state=absent
 
@@ -29,7 +29,7 @@
 
     - set_fact:
         stig_text: "PASSED"
-      when: remove_nullok.changed == true
+      when: remove_nullok.changed | true
 
     - debug:
         msg: "{{ stig_id }} {{ stig_text }}"

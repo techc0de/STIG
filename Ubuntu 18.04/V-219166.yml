@@ -10,15 +10,12 @@
 - name: Check for common-auth file existence
   block: 
 
-    - name: check for file existence
+    - name: check for faillock
       shell: grep faillock "{{ target_file }}"
       register: pam_check
       failed_when: pam_check.rc != 0
 
-- name: Verify the pam_faillock module is configured 
-  block: 
-
-    - name: check for following options
+    - name: check for faillock directives
       shell: egrep 'silent|audit|deny|fail_interval|unlock_time' /etc/security/faillock.conf
       register: options_check
       failed_when: options_check.rc != 0        
